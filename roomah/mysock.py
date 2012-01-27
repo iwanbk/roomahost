@@ -19,19 +19,20 @@ def connect(sock, addr):
 
 def send(sock, payload):
     """Write payload to socket."""
+    len = 0
     try:
         len = sock.send(payload)
     except socket.error as (errno, str):
         print "socket.error. Errno = ", errno, " err msg = ", str
-        return -1, errno
+        return len, errno
     except socket.herror as (errno, str):
         print "socket.herror. Errno = ", errno, " err msg = ", str
-        return -1, errno
+        return len, errno
     except socket.gaierror as (errno,str):
         print "socket.gaierror. Errno = ", errno, " err msg = ", str
-        return -1, errno
+        return len, errno
     except socket.timeout:
-        return -1, errno.ETIMEDOUT
+        return len, errno.ETIMEDOUT
     
     return len, None
     
