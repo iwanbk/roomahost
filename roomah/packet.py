@@ -32,26 +32,92 @@ payload
 AUTH_RSP_OK = 1
 AUTH_RSP_FAILED = 2
 
-'''
-DATA REQ packet
-header
-- type
-- ses id
 
-payload
-- request
-'''
+class DataReq:
+    '''
+    DATA REQ packet
+    header
+    - (0) type
+    - (1) subtype
+          undefined = 0
+    - (2) ses id
+    - (3,4) len
+    
+    payload
+    - request
+    '''
+    def __init__(self, payload = None):
+        self.type = TYPE_DATA_REQ
+        self.payload = payload
+    
+    def build(self, data, ses_id):
+        '''Build DATA REQ packet.'''
+        self.payload = bytearray(MIN_HEADER_LEN)
+        self.payload += data
+        self.payload[0] = TYPE_DATA_REQ
+        self.payload[2] = ses_id
+        
+        data_len = len(data)
+        self.payload[3] = data_len >> 8
+        self.payload[4] = data_len & 0xff
+    
+    def get_sesid(self):
+        return self.payload[2]
+    
+    def cek_valid(self):
+        return self.payload[0] == TYPE_DATA_REQ
+    
+    def get_data(self):
+        return self.payload[MIN_HEADER_LEN:]
+        
+    def get_len(self):
+        return (self.payload[3] << 8) | self.payload[4]
 
-'''
-DATA RSP packet
-header
-- type
-- ses id
-- EOF (1 jika eof)
-
-payload
-- response
-'''
+class DataRsp:
+    '''
+    DATA RSP packet
+    header
+    - (0) type
+    - (1) subtype:
+          undefined = 0
+          EOF = 1
+    - (2) ses id
+    - (3,4) len
+    payload
+    - response
+    '''
+    DATA_RSP_TYPE_EOF = 1
+    def __init__(self, payload = None):
+        self.type = TYPE_DATA_RSP
+        self.payload = payload
+    
+    def build(self, data, ses_id, sub_type = 0):
+        self.payload = bytearray(MIN_HEADER_LEN)
+        self.payload += data
+        self.payload[0] = TYPE_DATA_RSP
+        self.payload[1] = sub_type
+        self.payload[2] = ses_id
+        data_len = len(data)
+        self.payload[3] = data_len >> 8
+        self.payload[4] = data_len & 0xff
+    
+    def get_data(self):
+        return self.payload[MIN_HEADER_LEN:]
+    
+    def get_sesid(self):
+        return self.payload[2]
+    
+    def set_eof(self):
+        self.payload[1] = DataRsp.DATA_RSP_TYPE_EOF
+        
+    def is_eof(self):
+        return self.payload[1] == DataRsp.DATA_RSP_TYPE_EOF
+    
+    def get_len(self):
+        return (self.payload[3] << 8) | self.payload[4]
+        
+    def cek_valid(self):
+        return self.payload[0] == TYPE_DATA_RSP
 
 class Packet:
     def __init__(self, type = None, payload = None):
@@ -61,37 +127,6 @@ class Packet:
     def get_type(self):
         return self.payload[0]
         
-    def data_rsp_build(self, payload, ses_id, is_eof = 0):
-        self.payload = bytearray(MIN_HEADER_LEN)
-        self.payload += payload
-        self.payload[0] = TYPE_DATA_RSP
-        self.payload[1] = ses_id
-        self.payload[2] = is_eof
-    
-    def data_rsp_get_data(self):
-        return self.payload[MIN_HEADER_LEN:]
-    
-    def data_rsp_get_sesid(self):
-        return self.payload[1]
-        
-    def data_rsp_cek(self):
-        return self.payload[0] == TYPE_DATA_RSP
-        
-    def data_req_build(self, payload, ses_id):
-        '''Build DATA REQ packet.'''
-        self.payload = bytearray(MIN_HEADER_LEN)
-        self.payload += payload
-        self.payload[0] = TYPE_DATA_REQ
-        self.payload[1] = ses_id
-    
-    def data_req_get_sesid(self):
-        return self.payload[1]
-    
-    def data_req_cek(self):
-        return self.payload[0] == TYPE_DATA_REQ
-    
-    def data_req_get_data(self):
-        return self.payload[MIN_HEADER_LEN:]
     
     def auth_req_cek(self):
         if self.type != TYPE_AUTH_REQ:
