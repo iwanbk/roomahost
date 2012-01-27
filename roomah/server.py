@@ -56,13 +56,24 @@ def handle_client(sock, addr):
             client.req_pkt_fwd(1)
         
         #select() sock
-        rsocks,wsocks, xsocks = select.select([sock], [], [], 1)
+        rsocks,wsocks, xsocks = select.select([sock], [], [], 0.1)
         if len(rsocks) > 0:
-            client.recv_rsp_pkt()
+            ba_len, ba, err = mysock.recv(sock, BUF_LEN)
+            if err != None:
+                print "client.recv_rsp_pkt err sock"
+                print "FATAL ERROR"
+                sys.exit(-1)
+            
+            if ba_len == 0:
+                print "client exited"
+                print "UNHANDLED CONDITION. EXITING"
+                break
+            
+            client.procsess_rsp_pkt(ba, ba_len)
         if len(wsocks) > 0:
             pass
         
-        gevent.sleep(1)
+        #gevent.sleep(0)
 
 def client_server(port):
     server = StreamServer(('0.0.0.0', port), handle_client)

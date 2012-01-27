@@ -14,6 +14,8 @@ class Peer:
     def __init__(self, sock, ses_id):
         self.sock = sock
         self.ses_id = ses_id
+        self.ended = False
+        
 class Client:
     def __init__(self, user, sock):
         self.ses_id = 1
@@ -30,6 +32,25 @@ class Client:
         
         return peer
     
+    def del_peer(self, ses_id):
+        del self.peers[ses_id]
+    
+    def marked_peer_ended(self, ses_id):
+        peer = self.peers[ses_id]
+        peer.ended = True
+    
+    def get_peer_by_sock(self, sock):
+        if sock == None:
+            print "cant' search None sock"
+            print "FATAL ERROR"
+            sys.exit(-1)
+        
+        for k,v in self.peers.iteritems():
+            peer = v
+            if peer.sock == sock:
+                return peer
+        return None
+    
     def _gen_ses_id(self):
         ses_id = self.ses_id
         self.ses_id += 1
@@ -40,8 +61,10 @@ class Client:
     
     def req_pkt_fwd(self, n):
         req = self.req_pkt.pop(0)
-        req_pkt = packet.Packet()
-        req_pkt.data_req_build(req.payload, req.peer.ses_id)
+        
+        req_pkt = packet.DataReq()
+        req_pkt.build(req.payload, req.peer.ses_id)
+        
         written, err = mysock.send(self.sock, req_pkt.payload)
         if err != None:
             print "can't fwd packet to client"
@@ -53,30 +76,42 @@ class Client:
             print "FATAL ERROR"
             sys.exit(-1)
     
-    def recv_rsp_pkt(self):
-        ba_len, ba, err = mysock.recv(self.sock, BUF_LEN)
-        if err != None:
-            print "client.recv_rsp_pkt err sock"
-            print "FATAL ERROR"
-            sys.exit(-1)
+    def procsess_rsp_pkt(self, ba, ba_len):
+        #preliminary cek
+        if ba_len < packet.MIN_HEADER_LEN:
+            print "packet too small. discard"
+            return
         
-        rsp = packet.Packet(packet.TYPE_DATA_RSP, ba)
-        ses_id = rsp.data_rsp_get_sesid()
-        print "recv_rsp_pkt.ba_len = ", ba_len, ".ses_id = ", ses_id, ".payload len = ", len(rsp.payload)
+        rsp = packet.DataRsp(ba)
+        ses_id = rsp.get_sesid()
+        
+        print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
+        
         peer = self.peers[ses_id]
+        
+        #partial recv handler
+        if rsp.get_len() != len(rsp.get_data()):
+            print "PARTIAL RECV.rsp_len = ", rsp.get_len(), ".ba_len = ", ba_len
+            print "FATAL ERROR for session = ", ses_id
+            self.del_peer(ses_id)
+        
         #forward
         self.rsp_pkt_fwd(peer, rsp)
         
+        if rsp.is_eof() == True:
+            print "EOF.deleting peer for ses_id = ", ses_id
+            self.del_peer(ses_id)
+        
     def rsp_pkt_fwd(self, peer, rsp_pkt):
-        data = rsp_pkt.data_rsp_get_data()
-        print "data_len = ", len(data)
+        data = rsp_pkt.get_data()
+        
         written, err = mysock.send(peer.sock, data)
         if err != None:
             print "client.rsp_pkt_fwd err"
             print "FATAL ERROR"
             sys.exit(-1)
             
-        if written != len(rsp_pkt.data_rsp_get_data()):
+        if written != len(data):
             print "client.rsp_pkt_fwd partial "
             print "FATAL ERROR"
             sys.exit(-1)
