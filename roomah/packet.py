@@ -132,7 +132,7 @@ class Packet:
         
     
     def auth_req_cek(self):
-        if self.type != TYPE_AUTH_REQ:
+        if self.payload[0] != TYPE_AUTH_REQ:
             return False
         self.type = TYPE_AUTH_REQ
         return True
