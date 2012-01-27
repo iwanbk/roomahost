@@ -15,6 +15,31 @@ class Peer:
         self.sock = sock
         self.ses_id = ses_id
         self.ended = False
+        self.rsp_list = []
+    
+    def enq_rsp(self, payload):
+        self.rsp_list.insert(0, payload)
+    
+    def forward_rsp_pkt(self):
+        '''Forward RSP pkt to peer.'''
+        if len(self.rsp_list) == 0:
+            return 0
+        
+        data = self.rsp_list.pop(0)
+        
+        written, err = mysock.send(self.sock, data)
+        if err != None:
+            print "client.rsp_pkt_fwd err"
+        
+        if written < 0:
+            print "FATAL ERROR.written < 0"
+            sys.exit(-1)
+            
+        if written != len(data):
+            print "peer.forward_rsp_pkt partial "
+            peer.enq_rsp(data[written])
+            
+        return written
         
 class Client:
     def __init__(self, user, sock):
@@ -36,10 +61,6 @@ class Client:
     
     def del_peer(self, ses_id):
         del self.peers[ses_id]
-    
-    def marked_peer_ended(self, ses_id):
-        peer = self.peers[ses_id]
-        peer.ended = True
     
     def get_peer_by_sock(self, sock):
         if sock == None:
@@ -73,6 +94,14 @@ class Client:
         
         return ses_id
     
+    def get_socks_need_write(self):
+        sock_list = []
+        for k, v in self.peers.iteritems():
+            peer = v
+            if len(peer.rsp_list) > 0:
+                sock_list.append(peer.sock)
+        return sock_list
+    
     def add_req_pkt(self, req_pkt):
         self.req_pkt.append(req_pkt)
     
@@ -95,46 +124,40 @@ class Client:
         
         #print "forwarding pkt to client.len = ", len(req_pkt.payload), ".written = ", written
     
+    def del_client_ended(self):
+        to_del = []
+        for k, v in self.peers.iteritems():
+            peer = v
+            if peer.ended == True and len(peer.rsp_list) ==0:
+                to_del.append(peer.ses_id)
+        
+        for ses_id in to_del:
+            self.del_peer(ses_id)
+                
     def procsess_rsp_pkt(self, ba, ba_len):
         #preliminary cek
         if ba_len < packet.MIN_HEADER_LEN:
-            print "packet too small. discard"
-            return
+            print "FATAL:packet too small. discard"
+            sys.exit(-1)
         
         rsp = packet.DataRsp(ba)
         ses_id = rsp.get_sesid()
         
         if rsp.cek_valid() == False:
-            print "bukan DATA RSP"
+            print "FATAL : bukan DATA RSP"
             packet.print_header(rsp.payload)
-            #sys.exit(-1)
-            return
+            sys.exit(-1)
             
         #print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
-        
         peer = self.peers[ses_id]
         
         #forward
-        self.rsp_pkt_fwd(peer, rsp)
+        peer.rsp_list.append(rsp.get_data())
+        peer.forward_rsp_pkt()
         
         if rsp.is_eof() == True:
-            print "EOF.deleting peer for ses_id = ", ses_id
-            self.del_peer(ses_id)
-        
-    def rsp_pkt_fwd(self, peer, rsp_pkt):
-        '''Forward RSP pkt to peer.'''
-        data = rsp_pkt.get_data()
-        
-        written, err = mysock.send(peer.sock, data)
-        if err != None:
-            print "client.rsp_pkt_fwd err"
-            print "FATAL ERROR"
-            sys.exit(-1)
-            
-        if written != len(data):
-            print "client.rsp_pkt_fwd partial "
-            print "FATAL ERROR"
-            sys.exit(-1)
+            #print "mark peer as ended. ses_id = ", ses_id
+            peer.ended = True
         
 class ClientMgr:
     def __init__(self):
@@ -145,6 +168,9 @@ class ClientMgr:
         self.clients[str(user)] = client
         return client
     
+    def del_client(self, client):
+        del self.clients[client.user]
+        
     def get_client(self, user_str):
         return self.clients[user_str]
     

@@ -80,14 +80,21 @@ def handle_client(sock, addr):
             client.req_pkt_fwd(1)
         
         #select() sock
-        rsocks,wsocks, xsocks = select.select([sock], [], [], 0.1)
-        if len(rsocks) > 0:
+        wlist = client.get_socks_need_write()
+        rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
+        if len(rsocks) > 0:       
             ba, err = packet.get_all_data_pkt(sock)
             client.procsess_rsp_pkt(ba, len(ba))
+            
         if len(wsocks) > 0:
-            pass
-        
+            for s in wsocks:
+                peer = client.get_peer_by_sock(s)
+                peer.forward_rsp_pkt()
+                
+        client.del_client_ended()
         gevent.sleep(0)
+    
+    CM.del_client(client)
 
 def client_server(port):
     server = StreamServer(('0.0.0.0', port), handle_client)
@@ -107,9 +114,9 @@ def get_subdom(req, base_domain = BASE_DOMAIN):
         return host[:idx]
         
 def handle_peer(sock, addr):
-    print "##### peer baru ############"
-    print "sock = ", sock
-    print "addr = ", addr
+    #print "##### peer baru ############"
+    #print "sock = ", sock
+    #print "addr = ", addr
     
     ba, err = mysock.recv(sock, BUF_LEN)
     if err != None:
@@ -126,14 +133,13 @@ def handle_peer(sock, addr):
         print "can't add peer. MAX_CONN REACHED?"
         return
     
-    print "peer baru.ses_id =", peer.ses_id
+    #print "peer baru.ses_id =", peer.ses_id
     req_pkt = ReqPkt(peer, ba)
     client.add_req_pkt(req_pkt)
-    '''
-    print "willl loping"
-    while True:
+    
+    while peer.ended == False:
         gevent.sleep(0)
-    '''
+        
 def peer_server(port):
     server = StreamServer(('0.0.0.0', port), handle_peer)
     print 'Starting peer server on port ', port
