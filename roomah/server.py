@@ -11,10 +11,13 @@ import client_mgr
 import mysock
 import packet
 from client_mgr import ReqPkt
+import http_utils
 
 BUF_LEN = 1024
 
 CM = client_mgr.ClientMgr()
+
+BASE_DOMAIN = "master.lan"
 
 def client_auth_reply(sock):
     pass
@@ -72,6 +75,18 @@ def client_server(port):
     print 'Starting client server on port ', port
     server.serve_forever()
 
+def get_subdom(req, base_domain = BASE_DOMAIN):
+    header = http_utils.get_http_req_header(req)
+    
+    host= header['host']
+    
+    idx = host.find("." + base_domain)
+    
+    if idx < 0:
+        return None
+    else:
+        return host[:idx]
+        
 def handle_peer(sock, addr):
     print "##### peer baru ############"
     print "sock = ", sock
@@ -81,8 +96,10 @@ def handle_peer(sock, addr):
     if err != None:
         print "recv error"
         sys.exit(-1)
-    #anggap saja domainnya paijo
-    client = CM.get_client("paijo")
+    
+    subdom = get_subdom(ba)
+    
+    client = CM.get_client(subdom)
     
     peer = client.add_peer(sock)
     
@@ -97,9 +114,11 @@ def handle_peer(sock, addr):
 def peer_server(port):
     server = StreamServer(('0.0.0.0', port), handle_peer)
     print 'Starting peer server on port ', port
+    print 'BASE_DOMAIN = ', BASE_DOMAIN
     server.serve_forever()
     
 if __name__ == '__main__':
+    BASE_DOMAIN = sys.argv[1]
     group = gevent.pool.Group()
     cs = group.spawn(client_server, 3939)
     ps = group.spawn(peer_server, 4000)
