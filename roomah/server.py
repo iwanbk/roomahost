@@ -3,6 +3,7 @@ import select
 
 from gevent.server import StreamServer
 import gevent
+import gevent.pool
 from gevent import queue
 from gevent import monkey; monkey.patch_all()
 
@@ -17,6 +18,29 @@ CM = client_mgr.ClientMgr()
 
 def client_auth_reply(sock):
     pass
+
+def get_rsp_pkt(sock):
+    '''get complete Data RSP packet.'''
+    #read the header
+    ba_len, ba, err = mysock.recv(sock, 5)
+    if err != None:
+        print "FATAL ERROR.435."
+        sys.exit(-1)
+    if ba_len != 5:
+        print "FATAL ERROR.55"
+        sys.exit(-1)
+    
+    rsp_len = packet.get_len_from_header(ba)
+    print "need to recv ", rsp_len, " bytes"
+    pkt = ba
+    
+    if rsp_len > 0:
+        buf, err = mysock.recv_safe(sock, rsp_len)
+        print "---> get ", len(buf), " bytes"
+        pkt += buf
+    
+    return pkt
+        
 def handle_client(sock, addr):
     print "sock = ", sock
     print "addr = ", addr
@@ -58,6 +82,7 @@ def handle_client(sock, addr):
         #select() sock
         rsocks,wsocks, xsocks = select.select([sock], [], [], 0.1)
         if len(rsocks) > 0:
+            '''
             ba_len, ba, err = mysock.recv(sock, BUF_LEN)
             if err != None:
                 print "client.recv_rsp_pkt err sock"
@@ -68,12 +93,13 @@ def handle_client(sock, addr):
                 print "client exited"
                 print "UNHANDLED CONDITION. EXITING"
                 break
-            
-            client.procsess_rsp_pkt(ba, ba_len)
+            '''
+            ba = get_rsp_pkt(sock)
+            client.procsess_rsp_pkt(ba, len(ba))
         if len(wsocks) > 0:
             pass
         
-        #gevent.sleep(0)
+        gevent.sleep(0)
 
 def client_server(port):
     server = StreamServer(('0.0.0.0', port), handle_client)
@@ -81,6 +107,7 @@ def client_server(port):
     server.serve_forever()
 
 def handle_peer(sock, addr):
+    print "##### peer baru ############"
     print "sock = ", sock
     print "addr = ", addr
     
@@ -96,16 +123,20 @@ def handle_peer(sock, addr):
     print "peer baru.ses_id =", peer.ses_id
     req_pkt = ReqPkt(peer, ba)
     client.add_req_pkt(req_pkt)
+    '''
+    print "willl loping"
     while True:
         gevent.sleep(0)
-        
+    '''
 def peer_server(port):
     server = StreamServer(('0.0.0.0', port), handle_peer)
     print 'Starting peer server on port ', port
     server.serve_forever()
     
 if __name__ == '__main__':
-    cs = gevent.spawn(client_server, 3939)
-    ps = gevent.spawn(peer_server, 4000)
+    group = gevent.pool.Group()
+    cs = group.spawn(client_server, 3939)
+    ps = group.spawn(peer_server, 4000)
     
-    gevent.joinall([cs, ps])
+    #gevent.joinall([cs, ps])
+    group.join()

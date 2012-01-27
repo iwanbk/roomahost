@@ -75,6 +75,8 @@ class Client:
             print "partial forward to client"
             print "FATAL ERROR"
             sys.exit(-1)
+        
+        print "forwarding pkt to client.len = ", len(req_pkt.payload), ".written = ", written
     
     def procsess_rsp_pkt(self, ba, ba_len):
         #preliminary cek
@@ -85,15 +87,15 @@ class Client:
         rsp = packet.DataRsp(ba)
         ses_id = rsp.get_sesid()
         
+        if rsp.cek_valid() == False:
+            print "bukan DATA RSP"
+            packet.print_header(rsp.payload)
+            #sys.exit(-1)
+            return
+            
         print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
         
         peer = self.peers[ses_id]
-        
-        #partial recv handler
-        if rsp.get_len() != len(rsp.get_data()):
-            print "PARTIAL RECV.rsp_len = ", rsp.get_len(), ".ba_len = ", ba_len
-            print "FATAL ERROR for session = ", ses_id
-            self.del_peer(ses_id)
         
         #forward
         self.rsp_pkt_fwd(peer, rsp)

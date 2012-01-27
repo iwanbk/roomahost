@@ -33,6 +33,16 @@ AUTH_RSP_OK = 1
 AUTH_RSP_FAILED = 2
 
 
+def print_header(payload):
+    print "====== header ======="
+    print "[0]", payload[0]
+    print "[1]", payload[1]
+    print "[2]", payload[2]
+    print "[3]", payload[3]
+    print "[4]", payload[4]
+
+def get_len_from_header(header):
+    return (header[3] << 8) | header[4]
 class DataReq:
     '''
     DATA REQ packet
