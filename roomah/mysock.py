@@ -41,17 +41,17 @@ def recv_str(sock, count):
         str = sock.recv(count)
     except socket.error as (errno, str):
         print "socket.error. Errno = ", errno, " err msg = ", str
-        return -1, None, errno
+        return None, errno
     except socket.herror as (errno, str):
         print "socket.error. Errno = ", errno, " err msg = ", str
-        return -1, None, errno
+        return None, errno
     except socket.gaierror as (errno,str):
         print "socket.error. Errno = ", errno, " err msg = ", str
-        return -1, None, errno
+        return None, errno
     except socket.timeout:
-        return -1, None, errno.ETIMEDOUT
+        return None, errno.ETIMEDOUT
     
-    return len(str), str, None
+    return str, None
 
 def recv(sock, count):
     """Read count byte from socket."""
@@ -59,31 +59,31 @@ def recv(sock, count):
         str = sock.recv(count)
     except socket.error as (errno, str):
         print "socket.error. Errno = ", errno, " err msg = ", str
-        return -1, None, errno
+        return None, errno
     except socket.herror as (errno, str):
         print "socket.error. Errno = ", errno, " err msg = ", str
-        return -1, None, errno
+        return None, errno
     except socket.gaierror as (errno,str):
         print "socket.error. Errno = ", errno, " err msg = ", str
-        return -1, None, errno
+        return None, errno
     except socket.timeout:
-        return -1, None, errno.ETIMEDOUT
+        return None, errno.ETIMEDOUT
     
     ba = bytearray(str)
-    return len(ba),ba, None
+    return ba, None
 
 def recv_safe(sock, count):
     to_read = count
-    ba_len, ba, err = recv(sock, to_read)
-    tot = ba_len
+    ba, err = recv(sock, to_read)
+    tot = len(ba)
     
     buf = ba
     
-    to_read -= ba_len
+    to_read -= len(ba)
     while to_read > 0:
-        ba_len, ba, err = recv(sock, to_read)
+        ba, err = recv(sock, to_read)
         buf += ba
-        to_rad -= ba_len
+        to_rad -= len(ba)
         
     return buf, err
 def setkeepalives(sock):
