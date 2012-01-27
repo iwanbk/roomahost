@@ -1,3 +1,7 @@
+import sys
+
+import mysock
+
 """
 1. type
 2. header len (fixed = 5)
@@ -31,18 +35,7 @@ payload
 '''
 AUTH_RSP_OK = 1
 AUTH_RSP_FAILED = 2
-
-
-def print_header(payload):
-    print "====== header ======="
-    print "[0]", payload[0]
-    print "[1]", payload[1]
-    print "[2]", payload[2]
-    print "[3]", payload[3]
-    print "[4]", payload[4]
-
-def get_len_from_header(header):
-    return (header[3] << 8) | header[4]
+    
 class DataReq:
     '''
     DATA REQ packet
@@ -171,3 +164,39 @@ class Packet:
     
     def auth_rsp_get_val(self):
         return self.payload[MIN_HEADER_LEN]
+
+
+def print_header(payload):
+    print "====== header ======="
+    print "[0]", payload[0]
+    print "[1]", payload[1]
+    print "[2]", payload[2]
+    print "[3]", payload[3]
+    print "[4]", payload[4]
+
+def get_len_from_header(header):
+    '''Get packet len from given packet header.'''
+    return (header[3] << 8) | header[4]
+
+def get_all_data_pkt(sock):
+    '''get complete Data packet.'''
+    #read the header
+    ba, err = mysock.recv(sock, MIN_HEADER_LEN)
+    
+    if err != None:
+        print "FATAL ERROR.435."
+        sys.exit(-1)
+    if len(ba) != 5:
+        print "FATAL ERROR.55"
+        sys.exit(-1)
+    
+    pkt_len = get_len_from_header(ba)
+    #print "need to recv ", pkt_len, " bytes"
+    pkt = ba
+    
+    if pkt_len > 0:
+        buf, err = mysock.recv_safe(sock, pkt_len)
+        #print "---> get ", len(buf), " bytes"
+        pkt += buf
+    
+    return pkt, None
