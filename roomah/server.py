@@ -1,31 +1,38 @@
 import sys
 import select
 
+import jsonrpclib
 from gevent.server import StreamServer
 import gevent
 import gevent.pool
 from gevent import queue
 from gevent import monkey; monkey.patch_all()
 
+
 import client_mgr
 import mysock
 import packet
 from client_mgr import ReqPkt
 import http_utils
+import auth_rpcd
 
 BUF_LEN = 1024
 
 CM = client_mgr.ClientMgr()
 
 BASE_DOMAIN = "master.lan"
+auth_server = jsonrpclib.Server('http://localhost:4141')
 
+AUTH_RES_OK = 1
+AUTH_RES_UNKNOWN_ERR = 0
 def client_auth_reply(sock):
     pass
 
-def handle_client(sock, addr):
-    print "sock = ", sock
-    print "addr = ", addr
-    
+def client_auth_rpc(username, password):
+    res = auth_server.auth_client(str(username), str(password))
+    return res
+
+def client_auth(sock):
     #get auth req
     ba, err = mysock.recv(sock, BUF_LEN)
     if err != None:
@@ -34,16 +41,16 @@ def handle_client(sock, addr):
     pkt = packet.Packet(None, ba)
     
     if pkt.auth_req_cek() == False:
-        print "bukan paket auth req"
+        print "Bukan Paket AUTH REQ"
+        sys.exit(-1)
     
     user, password = pkt.auth_req_get_userpassword()
     print "user = ", user
     print "password = ", password
-    if user != password:
-        print "auth error"
-        sys.exit(-1)
     
-    client = CM.add_client(user, sock)
+    if client_auth_rpc(user, password) != auth_rpcd.RES_OK:
+        print "auth error"
+        return user, AUTH_RES_UNKNOWN_ERR
     
     rsp = packet.Packet(packet.TYPE_AUTH_RSP)
     rsp.auth_rsp_build(packet.AUTH_RSP_OK)
@@ -51,9 +58,21 @@ def handle_client(sock, addr):
     written, err = mysock.send(sock, rsp.payload)
     if err != None:
         print "can't send auth reply"
-        sys.exit(-1)
+        return user, AUTH_RES_UNKNOWN_ERR
     
-    print "rsp len = ", len(rsp.payload), ".written = ", written
+    return user, AUTH_RES_OK
+
+def handle_client(sock, addr):
+    print "sock = ", sock
+    print "addr = ", addr
+    
+    user, auth_res = client_auth(sock)
+    if auth_res != AUTH_RES_OK:
+        print "AUTH failed"
+        return
+    
+    client = CM.add_client(user, sock)
+    #print "rsp len = ", len(rsp.payload), ".written = ", written
     
     while True:
         #jika ada di req pkt queue, kirim ke client
@@ -102,6 +121,10 @@ def handle_peer(sock, addr):
     client = CM.get_client(subdom)
     
     peer = client.add_peer(sock)
+    
+    if peer == None:
+        print "can't add peer. MAX_CONN REACHED?"
+        return
     
     print "peer baru.ses_id =", peer.ses_id
     req_pkt = ReqPkt(peer, ba)
