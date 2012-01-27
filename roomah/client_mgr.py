@@ -27,6 +27,8 @@ class Client:
     
     def add_peer(self, sock):
         ses_id = self._gen_ses_id()
+        if ses_id == None:
+            return None
         peer = Peer(sock, ses_id)
         self.peers[ses_id] = peer
         
