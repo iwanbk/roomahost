@@ -38,29 +38,8 @@ def del_host_conn(ses_id, h_conn):
     h_conn.sock = None
     del host_conns_dict[ses_id]
 
-def get_req_pkt(sock):
-    '''get complete Data RSP packet.'''
-    #read the header
-    ba_len, ba, err = mysock.recv(sock, 5)
-    if err != None:
-        print "FATAL ERROR.435."
-        sys.exit(-1)
-    if ba_len != 5:
-        print "FATAL ERROR.55"
-        sys.exit(-1)
-    
-    req_len = packet.get_len_from_header(ba)
-    print "need to recv ", req_len, " bytes"
-    pkt = ba
-    
-    if req_len > 0:
-        buf, err = mysock.recv_safe(sock, req_len)
-        print "---> get ", len(buf), " bytes"
-        pkt += buf
-    
-    return pkt
-
 def forward_incoming_req_pkt(ba, ba_len):
+    '''Forward incoming req packet to host.'''
     req = packet.DataReq(ba)
     if req.cek_valid() == False:
         print "bukan DATA REQ"
@@ -101,14 +80,16 @@ def accept_host_rsp(h_sock):
         print "FATAL UNHANDLED CONDITION"
         sys.exi(-1)
         
-    ba_len, ba, err = mysock.recv(h_sock, HOST_BUF_LEN)
+    ba, err = mysock.recv(h_sock, HOST_BUF_LEN)
     if err != None:
         print "FATAL ERROR. error recv resp from host"
         sys.exit(-1)
     
-    print "recved host responses.ses_id = ", h_conn.ses_id, ".len = ", ba_len
+    ba_len = len(ba)
+    #print "recved host responses.ses_id = ", h_conn.ses_id, ".len = ", ba_len
+    
     if ba_len == 0:
-        print "closing the socket.."
+        #print "closing the socket.."
         h_sock.close()
         h_conn.ended = True
     
@@ -128,7 +109,7 @@ def forward_host_rsp(server_sock):
     rsp_pkt.build(h_rsp.payload, h_rsp.conn.ses_id)
     
     if len(h_rsp.payload) == 0:
-        print "EOF for ses_id = ", h_rsp.conn.ses_id
+        #print "EOF for ses_id = ", h_rsp.conn.ses_id
         rsp_pkt.set_eof()
         
     written, err = mysock.send(server_sock, rsp_pkt.payload)
@@ -145,7 +126,7 @@ def forward_host_rsp(server_sock):
     if len(h_rsp.payload) == 0:
         del_host_conn(h_conn.ses_id, h_conn)
     
-    print "forward exited...written = ", written
+    #print "forward exited...written = ", written
         
 if __name__ == '__main__':
     server = sys.argv[1]
@@ -177,7 +158,8 @@ if __name__ == '__main__':
     print "pkt len = ", len(pkt.payload)
     print "sent len = ", written
     
-    recvd, ba, err = mysock.recv(server_sock, 1024)
+    ba, err = mysock.recv(server_sock, 1024)
+    
     if err != None:
         print "failed to get auth reply"
         sys.exit(-1)
@@ -203,7 +185,7 @@ if __name__ == '__main__':
         
         if len(to_read) > 0:
             #read sock
-            ba = get_req_pkt(server_sock)
+            ba,err = packet.get_all_data_pkt(server_sock)
             forward_incoming_req_pkt(ba, len(ba))
         
         if len(to_write) > 0:

@@ -19,34 +19,12 @@ CM = client_mgr.ClientMgr()
 def client_auth_reply(sock):
     pass
 
-def get_rsp_pkt(sock):
-    '''get complete Data RSP packet.'''
-    #read the header
-    ba_len, ba, err = mysock.recv(sock, 5)
-    if err != None:
-        print "FATAL ERROR.435."
-        sys.exit(-1)
-    if ba_len != 5:
-        print "FATAL ERROR.55"
-        sys.exit(-1)
-    
-    rsp_len = packet.get_len_from_header(ba)
-    print "need to recv ", rsp_len, " bytes"
-    pkt = ba
-    
-    if rsp_len > 0:
-        buf, err = mysock.recv_safe(sock, rsp_len)
-        print "---> get ", len(buf), " bytes"
-        pkt += buf
-    
-    return pkt
-        
 def handle_client(sock, addr):
     print "sock = ", sock
     print "addr = ", addr
     
     #get auth req
-    recvd_len, ba, err = mysock.recv(sock, BUF_LEN)
+    ba, err = mysock.recv(sock, BUF_LEN)
     if err != None:
         print "can't recv auth req"
     
@@ -82,19 +60,7 @@ def handle_client(sock, addr):
         #select() sock
         rsocks,wsocks, xsocks = select.select([sock], [], [], 0.1)
         if len(rsocks) > 0:
-            '''
-            ba_len, ba, err = mysock.recv(sock, BUF_LEN)
-            if err != None:
-                print "client.recv_rsp_pkt err sock"
-                print "FATAL ERROR"
-                sys.exit(-1)
-            
-            if ba_len == 0:
-                print "client exited"
-                print "UNHANDLED CONDITION. EXITING"
-                break
-            '''
-            ba = get_rsp_pkt(sock)
+            ba, err = packet.get_all_data_pkt(sock)
             client.procsess_rsp_pkt(ba, len(ba))
         if len(wsocks) > 0:
             pass
@@ -111,7 +77,7 @@ def handle_peer(sock, addr):
     print "sock = ", sock
     print "addr = ", addr
     
-    recv, ba, err = mysock.recv(sock, BUF_LEN)
+    ba, err = mysock.recv(sock, BUF_LEN)
     if err != None:
         print "recv error"
         sys.exit(-1)

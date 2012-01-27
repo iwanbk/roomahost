@@ -93,7 +93,7 @@ class Client:
             #sys.exit(-1)
             return
             
-        print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
+        #print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
         
         peer = self.peers[ses_id]
         
@@ -105,6 +105,7 @@ class Client:
             self.del_peer(ses_id)
         
     def rsp_pkt_fwd(self, peer, rsp_pkt):
+        '''Forward RSP pkt to peer.'''
         data = rsp_pkt.get_data()
         
         written, err = mysock.send(peer.sock, data)
