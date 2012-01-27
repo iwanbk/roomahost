@@ -51,9 +51,24 @@ class Client:
                 return peer
         return None
     
+    def _inc_ses_id(self, ses_id):
+        if ses_id == 255:
+            return 1
+        else:
+            return ses_id + 1
+        
     def _gen_ses_id(self):
-        ses_id = self.ses_id
-        self.ses_id += 1
+        start_id = self.ses_id
+        
+        ses_id = start_id
+        
+        while ses_id in self.peers.keys():
+            ses_id = self._inc_ses_id(ses_id)
+            if ses_id == start_id:
+                return 0
+            
+        self.ses_id = self._inc_ses_id(ses_id)
+        
         return ses_id
     
     def add_req_pkt(self, req_pkt):
@@ -76,7 +91,7 @@ class Client:
             print "FATAL ERROR"
             sys.exit(-1)
         
-        print "forwarding pkt to client.len = ", len(req_pkt.payload), ".written = ", written
+        #print "forwarding pkt to client.len = ", len(req_pkt.payload), ".written = ", written
     
     def procsess_rsp_pkt(self, ba, ba_len):
         #preliminary cek
