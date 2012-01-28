@@ -129,6 +129,11 @@ class Client:
             sys.exit(-1)
             
         #print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
+        
+        if ses_id not in self.peers:
+            '''ses_id sudah tidak ada.discard packet.'''
+            return
+        
         peer = self.peers[ses_id]
         
         #forward
