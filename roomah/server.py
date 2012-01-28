@@ -80,18 +80,19 @@ def handle_client(sock, addr):
             client.req_pkt_fwd(1)
         
         #select() sock
-        wlist = client.get_socks_need_write()
+        wlist = [] #client.get_socks_need_write()
         rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
         if len(rsocks) > 0:       
             ba, err = packet.get_all_data_pkt(sock)
             client.procsess_rsp_pkt(ba, len(ba))
-            
+        
+        """
         if len(wsocks) > 0:
             for s in wsocks:
                 peer = client.get_peer_by_sock(s)
                 peer.forward_rsp_pkt()
-                
-        client.del_client_ended()
+        """        
+        #client.del_client_ended()
         gevent.sleep(0)
     
     CM.del_client(client)
@@ -137,7 +138,25 @@ def handle_peer(sock, addr):
     req_pkt = ReqPkt(peer, ba)
     client.add_req_pkt(req_pkt)
     
-    while peer.ended == False:
+    while True:
+        wlist = []
+        if len(peer.rsp_list) > 0:
+            wlist.append(sock)
+            
+        rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
+        if len(rsocks) > 0:
+            #print "FATAL ERROR 897"
+            #print sys.exit(-1)
+            pass
+        
+        if len(wsocks) > 0:
+            peer.forward_rsp_pkt()
+        
+        if peer.ended == True and len(peer.rsp_list) == 0:
+            peer.close()
+            client.del_peer(peer.ses_id)
+            break
+        
         gevent.sleep(0)
         
 def peer_server(port):

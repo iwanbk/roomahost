@@ -17,6 +17,12 @@ class Peer:
         self.ended = False
         self.rsp_list = []
     
+    def close(self):
+        if self.ended == False or len(self.rsp_list) > 0:
+            return False
+        self.sock.close()
+        return True
+        
     def enq_rsp(self, payload):
         self.rsp_list.insert(0, payload)
     
@@ -25,7 +31,8 @@ class Peer:
         if len(self.rsp_list) == 0:
             return 0
         
-        data = self.rsp_list.pop(0)
+        rsp = self.rsp_list.pop(0)
+        data = rsp.get_data()
         
         written, err = mysock.send(self.sock, data)
         if err != None:
@@ -37,7 +44,10 @@ class Peer:
             
         if written != len(data):
             print "peer.forward_rsp_pkt partial "
-            peer.enq_rsp(data[written])
+            self.enq_rsp(data[written])
+        
+        if rsp.is_eof() == True:
+            self.ended = True
             
         return written
         
@@ -62,18 +72,6 @@ class Client:
     def del_peer(self, ses_id):
         del self.peers[ses_id]
     
-    def get_peer_by_sock(self, sock):
-        if sock == None:
-            print "cant' search None sock"
-            print "FATAL ERROR"
-            sys.exit(-1)
-        
-        for k,v in self.peers.iteritems():
-            peer = v
-            if peer.sock == sock:
-                return peer
-        return None
-    
     def _inc_ses_id(self, ses_id):
         if ses_id == 255:
             return 1
@@ -93,14 +91,6 @@ class Client:
         self.ses_id = self._inc_ses_id(ses_id)
         
         return ses_id
-    
-    def get_socks_need_write(self):
-        sock_list = []
-        for k, v in self.peers.iteritems():
-            peer = v
-            if len(peer.rsp_list) > 0:
-                sock_list.append(peer.sock)
-        return sock_list
     
     def add_req_pkt(self, req_pkt):
         self.req_pkt.append(req_pkt)
@@ -123,17 +113,7 @@ class Client:
             sys.exit(-1)
         
         #print "forwarding pkt to client.len = ", len(req_pkt.payload), ".written = ", written
-    
-    def del_client_ended(self):
-        to_del = []
-        for k, v in self.peers.iteritems():
-            peer = v
-            if peer.ended == True and len(peer.rsp_list) ==0:
-                to_del.append(peer.ses_id)
         
-        for ses_id in to_del:
-            self.del_peer(ses_id)
-                
     def procsess_rsp_pkt(self, ba, ba_len):
         #preliminary cek
         if ba_len < packet.MIN_HEADER_LEN:
@@ -152,13 +132,8 @@ class Client:
         peer = self.peers[ses_id]
         
         #forward
-        peer.rsp_list.append(rsp.get_data())
-        peer.forward_rsp_pkt()
-        
-        if rsp.is_eof() == True:
-            #print "mark peer as ended. ses_id = ", ses_id
-            peer.ended = True
-        
+        peer.rsp_list.append(rsp)
+
 class ClientMgr:
     def __init__(self):
         self.clients = {}
