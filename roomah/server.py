@@ -144,10 +144,17 @@ def handle_peer(sock, addr):
             wlist.append(sock)
             
         rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
+        
         if len(rsocks) > 0:
-            #print "FATAL ERROR 897"
-            #print sys.exit(-1)
-            pass
+            ba, err = mysock.recv(sock, BUF_LEN)
+            if len(ba) == 0:
+                #peer close the socket
+                peer.close()
+                client.del_peer(peer.ses_id)
+                break    
+            elif len(ba) > 0:
+                print "UNHANDLED EVENT 89768"
+                sys.exit(-1)
         
         if len(wsocks) > 0:
             peer.forward_rsp_pkt()
