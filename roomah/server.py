@@ -153,8 +153,8 @@ def handle_peer(sock, addr):
                 client.del_peer(peer.ses_id)
                 break    
             elif len(ba) > 0:
-                print "UNHANDLED EVENT 89768"
-                sys.exit(-1)
+                req_pkt = ReqPkt(peer, ba)
+                client.add_req_pkt(req_pkt)
         
         if len(wsocks) > 0:
             peer.forward_rsp_pkt()
