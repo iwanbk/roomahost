@@ -17,7 +17,7 @@ def connect(sock, addr):
     
     return 0, None
 
-def send(sock, payload):
+def _send(sock, payload):
     """Write payload to socket."""
     len = 0
     try:
@@ -35,7 +35,23 @@ def send(sock, payload):
         return len, errno.ETIMEDOUT
     
     return len, None
+
+def send(sock, payload):
+    return _send(sock, payload)
     
+def send_all(sock, data):
+    if isinstance(data, unicode):
+        data = data.encode()
+    err = None
+    data_sent = 0
+    while data_sent < len(data):
+        written, err = _send(sock, data)
+        data_sent += written
+        if err is not None:
+            break
+    
+    return data_sent, err
+        
 def recv_str(sock, count):
     """Read count byte from socket."""
     try:

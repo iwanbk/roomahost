@@ -93,15 +93,17 @@ class Client:
         return ses_id
     
     def add_req_pkt(self, req_pkt):
+        '''add req pkt from to client's req_pkt list'''
         self.req_pkt.append(req_pkt)
     
     def req_pkt_fwd(self, n):
+        '''Forward request packet to client.'''
         req = self.req_pkt.pop(0)
         
         req_pkt = packet.DataReq()
         req_pkt.build(req.payload, req.peer.ses_id)
         
-        written, err = mysock.send(self.sock, req_pkt.payload)
+        written, err = mysock.send_all(self.sock, req_pkt.payload)
         if err != None:
             print "can't fwd packet to client"
             print "FATAL ERROR"

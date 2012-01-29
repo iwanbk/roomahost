@@ -59,7 +59,7 @@ def forward_incoming_req_pkt(ba, ba_len):
     h_conn.sock = h_sock
     
     ret, err = mysock.connect(h_sock, (host_host, host_port))
-    written, err = mysock.send(h_sock, req_data)
+    written, err = mysock.send_all(h_sock, req_data)
     if err != None:
         print "error forward"
         del host_conns_dict[ses_id]
@@ -112,7 +112,7 @@ def forward_host_rsp(server_sock):
         #print "EOF for ses_id = ", h_rsp.conn.ses_id
         rsp_pkt.set_eof()
         
-    written, err = mysock.send(server_sock, rsp_pkt.payload)
+    written, err = mysock.send_all(server_sock, rsp_pkt.payload)
     if err != None:
         print "error sending packet to server"
         sys.exit(-1)
