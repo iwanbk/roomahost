@@ -15,4 +15,9 @@ class HTTPRequest(BaseHTTPRequestHandler):
 def get_http_req_header(request):
     '''Get HTTP Request headers.'''
     http_req = HTTPRequest(request)
-    return http_req.headers
+    
+    try:
+        return http_req.headers
+    except AttributeError:
+        print "FATAL.ERR, headers not found. req = ", request
+        return None
