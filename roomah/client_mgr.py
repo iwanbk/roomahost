@@ -98,19 +98,24 @@ class Client:
     
     def req_pkt_fwd(self, n):
         '''Forward request packet to client.'''
+        if len(self.req_pkt) == 0:
+            return
+        
         req = self.req_pkt.pop(0)
         
         req_pkt = packet.DataReq()
         req_pkt.build(req.payload, req.peer.ses_id)
         
         written, err = mysock.send_all(self.sock, req_pkt.payload)
-        if err != None:
-            print "can't fwd packet to client"
-            print "FATAL ERROR"
-            sys.exit(-1)
         
         if written != len(req_pkt.payload):
+            '''kasus ini bisa terjadi jika ada error ketika pengiriman.'''
             print "partial forward to client"
+            print "FATAL ERROR"
+            sys.exit(-1)
+            
+        if err != None:
+            print "can't fwd packet to client"
             print "FATAL ERROR"
             sys.exit(-1)
         
@@ -151,7 +156,7 @@ class ClientMgr:
         return client
     
     def del_client(self, client):
-        del self.clients[client.user]
+        del self.clients[str(client.user)]
         
     def get_client(self, user_str):
         return self.clients[user_str]
