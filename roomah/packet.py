@@ -181,12 +181,18 @@ def get_len_from_header(header):
 def get_all_data_pkt(sock):
     '''get complete Data packet.'''
     #read the header
-    ba, err = mysock.recv(sock, MIN_HEADER_LEN)
+    ba, err = mysock.recv_safe(sock, MIN_HEADER_LEN)
+    
+    if ba == None:
+        '''something error happened.'''
+        print "null BA"
+        return None, None
     
     if err != None:
         print "FATAL ERROR.435."
         sys.exit(-1)
     if len(ba) != 5:
+        print "len_ba = ", len(ba)
         print "FATAL ERROR.55"
         sys.exit(-1)
     
@@ -196,6 +202,9 @@ def get_all_data_pkt(sock):
     
     if pkt_len > 0:
         buf, err = mysock.recv_safe(sock, pkt_len)
+        if buf == None:
+            print "NULL ba"
+            return None, None
         #print "---> get ", len(buf), " bytes"
         pkt += buf
     
