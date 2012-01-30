@@ -92,6 +92,9 @@ def recv(sock, count):
 def recv_safe(sock, count):
     to_read = count
     ba, err = recv(sock, to_read)
+    if len(ba) == 0:
+        return None, err
+    
     tot = len(ba)
     
     buf = ba
@@ -99,8 +102,10 @@ def recv_safe(sock, count):
     to_read -= len(ba)
     while to_read > 0:
         ba, err = recv(sock, to_read)
+        if len(ba) == 0:
+            return None, err
         buf += ba
-        to_rad -= len(ba)
+        to_read -= len(ba)
         
     return buf, err
 def setkeepalives(sock):
