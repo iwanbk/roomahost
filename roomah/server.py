@@ -20,7 +20,7 @@ BUF_LEN = 1024
 
 CM = client_mgr.ClientMgr()
 
-BASE_DOMAIN = "master.lan"
+BASE_DOMAIN = "homehost.tk"
 auth_server = jsonrpclib.Server('http://localhost:4141')
 
 AUTH_RES_OK = 1
@@ -84,6 +84,10 @@ def handle_client(sock, addr):
         rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
         if len(rsocks) > 0:       
             ba, err = packet.get_all_data_pkt(sock)
+            if ba is None:
+                print "FATAL.UNHANDLED ERR.89755"
+                sys.exit(-1)
+                
             client.procsess_rsp_pkt(ba, len(ba))
         
         """
@@ -105,10 +109,8 @@ def client_server(port):
 def get_subdom(req, base_domain = BASE_DOMAIN):
     header = http_utils.get_http_req_header(req)
     
-    host= header['host']
-    
+    host= header['Host']
     idx = host.find("." + base_domain)
-    
     if idx < 0:
         return None
     else:
@@ -122,9 +124,18 @@ def handle_peer(sock, addr):
     ba, err = mysock.recv(sock, BUF_LEN)
     if err != None:
         print "recv error"
-        sys.exit(-1)
+        return
+    
+    if len(ba) == 0:
+        print "new-closed socket?"
+        return
     
     subdom = get_subdom(ba)
+    
+    if subdom is None:
+        print "subdom not found"
+        sock.close()
+        return
     
     client = CM.get_client(subdom)
     
