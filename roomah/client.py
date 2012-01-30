@@ -33,7 +33,7 @@ def get_host_conn_by_sock(sock):
     
     return None
 def del_host_conn(ses_id, h_conn):
-    print "del host con.ses_id=", ses_id
+    #print "del host con.ses_id=", ses_id
     #h_conn.sock.close()
     h_conn.sock = None
     del host_conns_dict[ses_id]
@@ -186,6 +186,10 @@ if __name__ == '__main__':
         if len(to_read) > 0:
             #read sock
             ba,err = packet.get_all_data_pkt(server_sock)
+            if ba is None:
+                print "FATAL.unhandled err"
+                sys.exit(-1)
+                
             forward_incoming_req_pkt(ba, len(ba))
         
         if len(to_write) > 0:
