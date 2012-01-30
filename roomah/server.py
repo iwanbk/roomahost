@@ -80,23 +80,24 @@ def handle_client(sock, addr):
             client.req_pkt_fwd(1)
         
         #select() sock
-        wlist = [] #client.get_socks_need_write()
+        wlist = []
+        if len(client.req_pkt) > 0:
+            wlist.append(sock)
+            
+            
         rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
         if len(rsocks) > 0:       
             ba, err = packet.get_all_data_pkt(sock)
-            if ba is None:
-                print "FATAL.UNHANDLED ERR.89755"
-                sys.exit(-1)
+            if ba is None or err is not None:
+                print "read client sock err.exiting.."
+                break
                 
             client.procsess_rsp_pkt(ba, len(ba))
         
-        """
+        
         if len(wsocks) > 0:
-            for s in wsocks:
-                peer = client.get_peer_by_sock(s)
-                peer.forward_rsp_pkt()
-        """        
-        #client.del_client_ended()
+            client.req_pkt_fwd(1)
+
         gevent.sleep(0)
     
     CM.del_client(client)
