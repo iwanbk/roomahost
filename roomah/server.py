@@ -76,12 +76,12 @@ def handle_client(sock, addr):
     
     while True:
         #jika ada di req pkt queue, kirim ke client
-        if len(client.req_pkt) > 0:
-            client.req_pkt_fwd(1)
+        #if len(client.req_pkt) > 0:
+        #    client.req_pkt_fwd(1)
         
         #select() sock
         wlist = []
-        if len(client.req_pkt) > 0:
+        if len(client.req_pkt) > 0 or client.wait_ping_rsp == True:
             wlist.append(sock)
             
             
@@ -95,11 +95,15 @@ def handle_client(sock, addr):
             if ba[0] == packet.TYPE_DATA_RSP:  
                 client.procsess_rsp_pkt(ba, len(ba))
             elif ba[0] == packet.TYPE_PING_REQ:
-                print "[PING-REQ] from ", client.user
+                #print "[PING-REQ] from ", client.user
+                client.wait_ping_rsp = True
         
         
         if len(wsocks) > 0:
-            client.req_pkt_fwd(1)
+            if client.req_pkt_fwd(1) == False:
+                break
+            if client.ping_rsp_send() == False:
+                break
 
         gevent.sleep(0)
     

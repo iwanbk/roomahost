@@ -57,7 +57,7 @@ class Client:
         self.user = user
         self.sock = sock
         self.req_pkt = []
-        self.rsp_pkt = []
+        self.wait_ping_rsp = False
         self.peers = {}
     
     def add_peer(self, sock):
@@ -108,18 +108,24 @@ class Client:
         
         written, err = mysock.send_all(self.sock, req_pkt.payload)
         
-        if written != len(req_pkt.payload):
-            '''kasus ini bisa terjadi jika ada error ketika pengiriman.'''
-            print "partial forward to client"
-            print "FATAL ERROR"
-            sys.exit(-1)
-            
-        if err != None:
-            print "can't fwd packet to client"
-            print "FATAL ERROR"
-            sys.exit(-1)
+        if written != len(req_pkt.payload) or err != None:
+            print "failed to send req pkt to client"
+            return False
+    
+    def ping_rsp_send(self):
+        '''Send PING-RSP to client.'''
+        if self.wait_ping_rsp == False:
+            return True
         
-        #print "forwarding pkt to client.len = ", len(req_pkt.payload), ".written = ", written
+        p_rsp = packet.PingRsp()
+        
+        written, err = mysock.send_all(self.sock, p_rsp.payload)
+        
+        if err != None or (len(p_rsp.payload) != written):
+            print "error sending PING-RSP to ", client.user
+            return False
+        
+        self.wait_ping_rsp = False
         
     def procsess_rsp_pkt(self, ba, ba_len):
         #preliminary cek
