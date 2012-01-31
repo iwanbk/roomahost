@@ -209,7 +209,7 @@ if __name__ == '__main__':
         sys.exit(-1)
     
     print "AUTH OK"
-    server_sock.setblocking(0)
+    #server_sock.setblocking(0)
     
     client = Client(server_sock)
     
