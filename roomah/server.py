@@ -91,8 +91,11 @@ def handle_client(sock, addr):
             if ba is None or err is not None:
                 print "read client sock err.exiting.."
                 break
-                
-            client.procsess_rsp_pkt(ba, len(ba))
+            
+            if ba[0] == packet.TYPE_DATA_RSP:  
+                client.procsess_rsp_pkt(ba, len(ba))
+            elif ba[0] == packet.TYPE_PING_REQ:
+                print "[PING-REQ] from ", client.user
         
         
         if len(wsocks) > 0:
