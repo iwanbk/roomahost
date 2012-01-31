@@ -1,6 +1,7 @@
 import sys
 import socket
 import select
+import time
 
 import packet
 import mysock
@@ -127,6 +128,39 @@ def forward_host_rsp(server_sock):
         del_host_conn(h_conn.ses_id, h_conn)
     
     #print "forward exited...written = ", written
+
+class Client:
+    def __init__(self, server_sock):
+        self.last_ping = time.time()
+        self.server_sock = server_sock
+        self.to_server_pkt = []
+        self.wait_ping_rsp = False
+    
+    def cek_ping(self):
+        if time.time() - self.last_ping >= 10:
+            preq = packet.PingReq()
+            self.to_server_pkt.append(preq)
+    
+    def send_to_server_pkt(self):
+        if len(self.to_server_pkt) == 0:
+            return True
+        
+        pkt = self.to_server_pkt.pop(0)
+        
+        written, err = mysock.send_all(self.server_sock, pkt.payload)
+        if (err != None) or (written != len(pkt.payload)):
+            print "err sending pkt to server"
+            return False
+        
+        if pkt.payload[0] == packet.TYPE_PING_REQ:
+            self.last_ping = time.time()
+            self.wait_ping_rsp = True
+            print "[PING-REQ]"
+        
+        return True
+    
+    def handle_ping_rsp(self):
+        self.wait_ping_rsp = False
         
 if __name__ == '__main__':
     server = sys.argv[1]
@@ -175,11 +209,15 @@ if __name__ == '__main__':
         sys.exit(-1)
     
     print "AUTH OK"
-    #server_sock.setblocking(0)
+    server_sock.setblocking(0)
+    
+    client = Client(server_sock)
     
     #start looping
     while True:
-        #print "main loop"
+        #cek last_ping
+        client.cek_ping()
+        
         #select untuk server sock
         to_read, to_write, to_exc = select.select([server_sock], [server_sock], [], 0.1)
         
@@ -194,6 +232,8 @@ if __name__ == '__main__':
         
         if len(to_write) > 0:
             forward_host_rsp(server_sock)
+            if client.send_to_server_pkt() == False:
+                break
         
         #select untuk host sock
         rlist = []
