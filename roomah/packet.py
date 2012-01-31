@@ -13,6 +13,8 @@ TYPE_AUTH_REQ = 1
 TYPE_AUTH_RSP = 2
 TYPE_DATA_REQ = 3
 TYPE_DATA_RSP = 4
+TYPE_PING_REQ = 5
+TYPE_PING_RSP = 6
 '''
 Auth REQ packet
 header
@@ -122,6 +124,43 @@ class DataRsp:
     def cek_valid(self):
         return self.payload[0] == TYPE_DATA_RSP
 
+class Ping:
+    '''
+    Ping Packet:
+    header:
+    - (0) type (REQ/RSP)
+    - (1) 0
+    - (2) 0
+    - (3,4) len (0)
+    
+    payload/data
+    No data
+    '''
+    def __init__(self):
+        self.payload = bytearray(MIN_HEADER_LEN)
+        #set len = 0
+        self.payload[3] = 0
+        self.payload[4] = 0
+    
+    def get_len(self):
+        get_len_from_header(self.payload)
+
+class PingReq(Ping):
+    def __init__(self):
+        Ping.__init__(self)
+        self.payload[0] = TYPE_PING_REQ
+    
+    def cek_valid(self):
+        return self.payload[0] == TYPE_PING_REQ
+
+class PingRsp(Ping):
+    def __init__(self):
+        Ping.__init__(self)
+        self.payload[0] = TYPE_PING_RSP
+    
+    def cek_valid(self):
+        return self.payload[0] == TYPE_PING_RSP
+        
 class Packet:
     def __init__(self, type = None, payload = None):
         self.type = type
