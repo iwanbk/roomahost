@@ -130,7 +130,7 @@ def forward_host_rsp(server_sock):
     #print "forward exited...written = ", written
 
 class Client:
-    PING_REQ_PERIOD = 12
+    PING_REQ_PERIOD = 120
     PING_RSP_WAIT_TIME = PING_REQ_PERIOD / 2
     
     def __init__(self, server_sock):
