@@ -63,6 +63,7 @@ def client_auth(sock):
     return user, AUTH_RES_OK
 
 def handle_client(sock, addr):
+    print "BASE_DOMAIN = ", BASE_DOMAIN
     print "sock = ", sock
     print "addr = ", addr
     
@@ -138,7 +139,7 @@ def handle_peer(sock, addr):
         print "new-closed socket?"
         return
     
-    subdom = get_subdom(ba)
+    subdom = get_subdom(ba, BASE_DOMAIN)
     
     if subdom is None:
         print "subdom not found"
@@ -192,6 +193,7 @@ def peer_server(port):
     server.serve_forever()
     
 if __name__ == '__main__':
+    global BASE_DOMAIN
     BASE_DOMAIN = sys.argv[1]
     group = gevent.pool.Group()
     cs = group.spawn(client_server, 3939)
