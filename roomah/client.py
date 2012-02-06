@@ -18,6 +18,16 @@ class HostConn:
         self.sock = None
         self.ses_id = ses_id
         self.ended = False
+        self.rsp_list = []
+
+def clean_host_conn():
+    to_del = []
+    for k,h_conn in host_conns_dict.iteritems():
+        if h_conn.ended == True and len(h_conn.rsp_list) == 0:
+            to_del.append(h_conn)
+    
+    for h_conn in to_del:
+        del_host_conn(h_conn.ses_id, h_conn)
 
 class HostRsp:
     def __init__(self, h_conn, payload):
@@ -76,60 +86,55 @@ def accept_host_rsp(h_sock):
     '''accept host response.
     enqueue it to rsp_list.
     '''
+    #get HostConn object
     h_conn = get_host_conn_by_sock(h_sock)
     if h_conn == None:
         print "can't get h_conn by sock"
         print "FATAL UNHANDLED CONDITION"
-        sys.exi(-1)
+        sys.exit(-1)
         
+    #receive the response
     ba, err = mysock.recv(h_sock, HOST_BUF_LEN)
     if err != None:
         print "FATAL ERROR. error recv resp from host"
         sys.exit(-1)
     
-    ba_len = len(ba)
-    #print "recved host responses.ses_id = ", h_conn.ses_id, ".len = ", ba_len
-    
-    if ba_len == 0:
+    if len(ba) == 0:
         #print "closing the socket.."
         h_sock.close()
         h_conn.ended = True
     
-    h_rsp = HostRsp(h_conn, ba)
-    rsp_list.append(h_rsp)
+    #experimental
+    h_conn.rsp_list.append(ba)
 
-def forward_host_rsp(server_sock):
-    '''Forward host response to server.'''
-    if len(rsp_list) == 0:
-        return
-
-    h_rsp = rsp_list.pop(0)
-    h_conn = h_rsp.conn
-    
-    rsp_pkt = packet.DataRsp()
-    
-    rsp_pkt.build(h_rsp.payload, h_rsp.conn.ses_id)
-    
-    if len(h_rsp.payload) == 0:
-        #print "EOF for ses_id = ", h_rsp.conn.ses_id
-        rsp_pkt.set_eof()
         
+def _send_rsp_pkt_to_server(rsp_pkt, server_sock):
     written, err = mysock.send_all(server_sock, rsp_pkt.payload)
     if err != None:
         print "error sending packet to server"
         sys.exit(-1)
     
-    #print "[", h_conn.ses_id, "]written = ", written, ".len(payload) = ", len(rsp_pkt.payload)
-        
     if written != len(rsp_pkt.payload):
         print "partial write to server"
         sys.exit(-1)
-    
-    if len(h_rsp.payload) == 0:
-        del_host_conn(h_conn.ses_id, h_conn)
-    
-    #print "forward exited...written = ", written
 
+def forward_host_rsp(server_sock):
+    for k,h_conn in host_conns_dict.iteritems():
+        if len(h_conn.rsp_list) > 0:
+            ba = h_conn.rsp_list.pop(0)
+            rsp_pkt = packet.DataRsp()
+            rsp_pkt.build(ba, h_conn.ses_id)
+    
+            if len(ba) == 0:
+                rsp_pkt.set_eof()
+            
+            _send_rsp_pkt_to_server(rsp_pkt, server_sock)
+            
+            if rsp_pkt.is_eof():
+                #del_host_conn(h_conn.ses_id, h_conn)
+                h_conn.ended == True
+
+        
 class Client:
     PING_REQ_PERIOD = 120
     PING_RSP_WAIT_TIME = PING_REQ_PERIOD / 2
@@ -141,11 +146,16 @@ class Client:
         self.wait_ping_rsp = False
     
     def cek_ping_req(self):
+        '''Cek waktu terakhir melakukan ping dan enqueue ping packet kalo sudah waktunya melakukan ping lagi.'''
         if time.time() - self.last_ping >= Client.PING_REQ_PERIOD:
             preq = packet.PingReq()
             self.to_server_pkt.append(preq)
     
     def cek_ping_rsp(self):
+        '''Cek ping response.
+        
+        Return false jika ping rsp belum datang dan melebihi timeout.
+        '''
         if not self.wait_ping_rsp:
             return True
         
@@ -155,10 +165,12 @@ class Client:
         return True
     
     def handle_ping_rsp(self, ba):
+        '''Handle PING-RSP.'''
         self.wait_ping_rsp = False
         self.last_ping = time.time()
         
     def send_to_server_pkt(self):
+        '''Send packet di queue ke server.'''
         if len(self.to_server_pkt) == 0:
             return True
         
@@ -175,17 +187,8 @@ class Client:
             print "[PING-REQ]", datetime.datetime.now()
         
         return True
-        
-if __name__ == '__main__':
-    server = sys.argv[1]
-    port = int(sys.argv[2])
-    user = sys.argv[3]
-    passwd = sys.argv[4]
-    host_host = sys.argv[5]
-    host_port = int(sys.argv[6])
-    
-    sock_dict = {}
-    
+
+def client_loop(server, port, user, passwd, host_host, host_port):
     #connect to server
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     mysock.setkeepalives(server_sock)
@@ -200,8 +203,9 @@ if __name__ == '__main__':
     pkt.auth_req_build(user, passwd)
     written, err = mysock.send(server_sock, pkt.payload)
     if err != None:
-        print "can't send auth req to client"
+        print "can't send auth req to server"
         print "err = ", err
+        sys.exit(-1)
     
     print "pkt len = ", len(pkt.payload)
     print "sent len = ", written
@@ -244,6 +248,7 @@ if __name__ == '__main__':
             
             if ba[0] == packet.TYPE_DATA_REQ:
                 forward_incoming_req_pkt(ba, len(ba))
+                
             elif ba[0] == packet.TYPE_PING_RSP:
                 print "PING-RSP ", datetime.datetime.now()
                 client.handle_ping_rsp(ba)
@@ -252,6 +257,8 @@ if __name__ == '__main__':
             forward_host_rsp(server_sock)
             if client.send_to_server_pkt() == False:
                 break
+            
+        clean_host_conn()
         
         '''select() untuk host sock'''
         rlist = []
@@ -271,5 +278,15 @@ if __name__ == '__main__':
             print "PING-RSP timeout"
             break
                 
-    print "Client exited gracefully"
+    print "Client exited..."
     
+        
+if __name__ == '__main__':
+    server = sys.argv[1]
+    port = int(sys.argv[2])
+    user = sys.argv[3]
+    passwd = sys.argv[4]
+    host_host = sys.argv[5]
+    host_port = int(sys.argv[6])
+    
+    client_loop(server, port, user, passwd, host_host, host_port)
