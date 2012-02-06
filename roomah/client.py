@@ -283,10 +283,10 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         
 if __name__ == '__main__':
     server = sys.argv[1]
-    port = int(sys.argv[2])
-    user = sys.argv[3]
-    passwd = sys.argv[4]
-    host_host = sys.argv[5]
-    host_port = int(sys.argv[6])
+    port = 3939
+    user = sys.argv[2]
+    passwd = sys.argv[3]
+    host_host = sys.argv[4]
+    host_port = int(sys.argv[5])
     
     client_loop(server, port, user, passwd, host_host, host_port)
