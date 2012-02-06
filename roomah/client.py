@@ -2,6 +2,7 @@ import sys
 import socket
 import select
 import time
+import datetime
 
 import packet
 import mysock
@@ -171,7 +172,7 @@ class Client:
         if pkt.payload[0] == packet.TYPE_PING_REQ:
             self.last_ping = time.time()
             self.wait_ping_rsp = True
-            print "[PING-REQ]"
+            print "[PING-REQ]", datetime.datetime.now()
         
         return True
         
@@ -244,7 +245,7 @@ if __name__ == '__main__':
             if ba[0] == packet.TYPE_DATA_REQ:
                 forward_incoming_req_pkt(ba, len(ba))
             elif ba[0] == packet.TYPE_PING_RSP:
-                print "PING-RSP"
+                print "PING-RSP ", datetime.datetime.now()
                 client.handle_ping_rsp(ba)
         
         if len(to_write) > 0:
