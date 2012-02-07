@@ -10,10 +10,11 @@ from gevent import monkey; monkey.patch_all()
 
 
 import client_mgr
-from client_mgr import ClientMgr, Client
+from client_mgr import ClientMgr
+from client import Client
 import mysock
 import packet
-from client_mgr import ReqPkt
+from client import ReqPkt
 import http_utils
 import auth_rpcd
 
@@ -66,27 +67,22 @@ def client_auth(sock):
 def unregister_client(CM, client):
     msg = {}
     msg['mt'] = CM.MT_CLIENT_DEL_REQ
-    msg['client'] = client
+    msg['user'] = client.user
     
     CM.in_mq.put(msg)
     
-def register_client(CM, user, sock):
+def register_client(CM, user, in_mq):
     #prepare the message
-    q = gevent.queue.Queue(1)
     msg = {}
     msg['mt'] = ClientMgr.MT_CLIENT_ADD_REQ
     msg['user'] = user
-    msg['sock'] = sock
-    msg['q'] = q
+    msg['in_mq'] = in_mq
     
     #send the message
     CM.in_mq.put(msg)
     
     #wait the reply
-    rsp = q.get()
-    client = rsp['client']
-    
-    return client
+    return True
     
 def handle_client(sock, addr):
     print "BASE_DOMAIN = ", BASE_DOMAIN
@@ -98,9 +94,8 @@ def handle_client(sock, addr):
         print "AUTH failed"
         return
     
-    
-    #client = CM.add_client(user, sock)
-    client = register_client(CM, user, sock)
+    client = Client(user, sock)
+    register_client(CM, client.user, client.in_mq)
     
     while True:
         client.process_msg()
