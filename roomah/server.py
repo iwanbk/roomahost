@@ -153,7 +153,7 @@ def get_subdom(req, base_domain = BASE_DOMAIN):
     else:
         return host[:idx]
 
-def get_client(CM, subdom):
+def get_client_mq(CM, subdom):
     q = gevent.queue.Queue(1)
     msg = {}
     msg['mt'] = ClientMgr.MT_CLIENT_GET_REQ
@@ -163,33 +163,33 @@ def get_client(CM, subdom):
     CM.in_mq.put(msg)
     
     rsp = q.get()
-    client = rsp['client']
-    return client
+    client_mq = rsp['client_mq']
+    return client_mq
     
-def _add_peer_to_client(client, sock):
+def _add_peer_to_client(client_mq, sock):
     q = gevent.queue.Queue(1)
     msg = {}
     msg['mt'] = Client.MT_PEER_ADD_REQ
     msg['sock'] = sock
     msg['q'] = q
-    client.in_mq.put(msg)
+    client_mq.put(msg)
     
     rsp = q.get()
     
     peer = rsp['peer']
     return peer
 
-def _peer_add_reqpkt_to_client(client, req_pkt):
+def _peer_add_reqpkt_to_client(client_mq, req_pkt):
     msg = {}
     msg['mt'] = Client.MT_REQPKT_ADD_REQ
     msg['req_pkt'] = req_pkt
-    client.in_mq.put(msg)
+    client_mq.put(msg)
 
-def _peer_del_from_client(client, peer):
+def _peer_del_from_client(client_mq, peer):
     msg = {}
     msg['mt'] = Client.MT_PEER_DEL_REQ
     msg['ses_id'] = peer.ses_id
-    client.in_mq.put(msg)
+    client_mq.put(msg)
     
 def handle_peer(sock, addr):
     #print "##### peer baru ############"
@@ -213,9 +213,9 @@ def handle_peer(sock, addr):
         return
     
     #client = CM.get_client(subdom)
-    client = get_client(CM, subdom)
+    client_mq = get_client_mq(CM, subdom)
     
-    peer = _add_peer_to_client(client, sock)
+    peer = _add_peer_to_client(client_mq, sock)
     
     if peer == None:
         print "can't add peer. MAX_CONN REACHED?"
@@ -223,7 +223,7 @@ def handle_peer(sock, addr):
     
     #print "peer baru.ses_id =", peer.ses_id
     req_pkt = ReqPkt(peer, ba)
-    _peer_add_reqpkt_to_client(client, req_pkt)
+    _peer_add_reqpkt_to_client(client_mq, req_pkt)
     
     while True:
         wlist = []
@@ -237,18 +237,18 @@ def handle_peer(sock, addr):
             if len(ba) == 0:
                 #peer close the socket
                 peer.close()
-                _peer_del_from_client(client, peer)
+                _peer_del_from_client(client_mq, peer)
                 break    
             elif len(ba) > 0:
                 req_pkt = ReqPkt(peer, ba)
-                _peer_add_reqpkt_to_client(client, req_pkt)
+                _peer_add_reqpkt_to_client(client_mq, req_pkt)
         
         if len(wsocks) > 0:
             peer.forward_rsp_pkt()
         
         if peer.ended == True and len(peer.rsp_list) == 0:
             peer.close()
-            _peer_del_from_client(client, peer)
+            _peer_del_from_client(client_mq, peer)
             break
         
         gevent.sleep(0)

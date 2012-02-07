@@ -253,7 +253,8 @@ class ClientMgr(gevent.Greenlet):
             q = msg['q']
             rsp = {}
             rsp['mt'] = self.MT_CLIENT_GET_RSP
-            rsp['client'] = self._get_client(user_str)
+            client = self._get_client(user_str)
+            rsp['client_mq'] = client.in_mq
             try:
                 q.put(rsp, timeout = self.PUT_TIMEOUT_DEFAULT)
             except gevent.queueu.Full:
