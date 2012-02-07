@@ -35,7 +35,10 @@ class ClientMgr(gevent.Greenlet):
         del self.clients_mq[str(user)]
         
     def _get_client_mq(self, user_str):
-        return self.clients_mq[user_str]
+        if user_str in self.clients_mq:
+            return self.clients_mq[user_str]
+        else:
+            return None
     
     def proc_msg(self, msg):
         if msg['mt'] == self.MT_CLIENT_ADD_REQ:
