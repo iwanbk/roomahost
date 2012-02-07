@@ -28,6 +28,18 @@ auth_server = jsonrpclib.Server('http://localhost:4141')
 
 AUTH_RES_OK = 1
 AUTH_RES_UNKNOWN_ERR = 0
+
+def user_not_found_str(user):
+    str = "HTTP/1.1\n\
+Server: nginx/1.1.11\n\
+Content-Type: text/html\n\
+Content-Length: 173\n\
+Connection: close\n\
+\r\n\
+"
+    str += user + " ga ketemu"
+    return str
+
 def client_auth_reply(sock):
     pass
 
@@ -214,6 +226,12 @@ def handle_peer(sock, addr):
         return
     
     client_mq = get_client_mq(CM, subdom)
+    
+    if client_mq == None:
+        print "send user error"
+        str_err = user_not_found_str(subdom)
+        mysock.send_all(sock, str_err)
+        return
     
     peer = _add_peer_to_client(client_mq, sock)
     
