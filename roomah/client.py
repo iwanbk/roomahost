@@ -2,6 +2,7 @@ import sys
 
 import gevent
 
+from peer import Peer
 import packet
 import mysock
 
@@ -11,48 +12,6 @@ class ReqPkt:
     def __init__(self, peer, payload):
         self.peer = peer
         self.payload = payload
-        
-class Peer:
-    def __init__(self, sock, ses_id):
-        self.sock = sock
-        self.ses_id = ses_id
-        self.ended = False
-        self.rsp_list = []
-        self.in_mq = gevent.queue.Queue(10)
-    
-    def close(self):
-        if self.ended == False or len(self.rsp_list) > 0:
-            return False
-        self.sock.close()
-        return True
-        
-    def enq_rsp(self, payload):
-        self.rsp_list.insert(0, payload)
-    
-    def forward_rsp_pkt(self):
-        '''Forward RSP pkt to peer.'''
-        if len(self.rsp_list) == 0:
-            return 0
-        
-        rsp = self.rsp_list.pop(0)
-        data = rsp.get_data()
-        
-        written, err = mysock.send(self.sock, data)
-        if err != None:
-            print "client.rsp_pkt_fwd err"
-        
-        if written < 0:
-            print "FATAL ERROR.written < 0"
-            sys.exit(-1)
-            
-        if written != len(data):
-            print "peer.forward_rsp_pkt partial "
-            self.enq_rsp(data[written])
-        
-        if rsp.is_eof() == True:
-            self.ended = True
-            
-        return written
         
 class Client:
     MT_PEER_ADD_REQ = 1
@@ -68,20 +27,19 @@ class Client:
         self.sock = sock
         self.req_pkt = []
         self.wait_ping_rsp = False
-        self.peers = {}
+        self.peers_mq = {}
         self.in_mq = gevent.queue.Queue(10)
     
-    def _add_peer(self, sock):
+    def _add_peer(self, in_mq):
         ses_id = self._gen_ses_id()
         if ses_id == None:
             return None
-        peer = Peer(sock, ses_id)
-        self.peers[ses_id] = peer
+        self.peers_mq[ses_id] = in_mq
         
-        return peer
+        return ses_id
     
     def _del_peer(self, ses_id):
-        del self.peers[ses_id]
+        del self.peers_mq[ses_id]
     
     def process_msg(self):
         try:
@@ -90,16 +48,18 @@ class Client:
             return
         
         if msg['mt'] == self.MT_PEER_ADD_REQ:
-            sock = msg['sock']
             q = msg['q']
-            peer = self._add_peer(sock)
+            in_mq = msg['in_mq']
+            ses_id = self._add_peer(in_mq)
+            
             rsp = {}
             rsp['mt'] = self.MT_PEER_ADD_RSP
-            rsp['peer'] = peer
+            rsp['ses_id'] = ses_id
             try:
                 q.put(rsp)
             except gevent.queue.Full:
                 pass
+            
         elif msg['mt'] == self.MT_PEER_DEL_REQ:
             ses_id = msg['ses_id']
             self._del_peer(ses_id)
@@ -121,7 +81,7 @@ class Client:
         
         ses_id = start_id
         
-        while ses_id in self.peers.keys():
+        while ses_id in self.peers_mq.keys():
             ses_id = self._inc_ses_id(ses_id)
             if ses_id == start_id:
                 return 0
@@ -181,11 +141,18 @@ class Client:
             
         #print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
         
-        if ses_id not in self.peers:
+        if ses_id not in self.peers_mq:
             '''ses_id sudah tidak ada.discard packet.'''
             return
-        
+        """
         peer = self.peers[ses_id]
         
         #forward
         peer.rsp_list.append(rsp)
+        """
+        msg = {}
+        msg['mt'] = Peer.MT_ADD_RSP_PKT
+        msg['pkt'] = rsp
+        
+        peer_mq = self.peers_mq[ses_id]
+        peer_mq.put(msg)

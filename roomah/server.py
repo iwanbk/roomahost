@@ -12,6 +12,7 @@ from gevent import monkey; monkey.patch_all()
 import client_mgr
 from client_mgr import ClientMgr
 from client import Client
+from peer import Peer
 import mysock
 import packet
 from client import ReqPkt
@@ -162,16 +163,21 @@ def get_client_mq(CM, subdom):
     return client_mq
     
 def _add_peer_to_client(client_mq, sock):
+    peer = Peer(sock, None)
+    
     q = gevent.queue.Queue(1)
     msg = {}
     msg['mt'] = Client.MT_PEER_ADD_REQ
-    msg['sock'] = sock
+    msg['in_mq'] = peer.in_mq
     msg['q'] = q
     client_mq.put(msg)
     
     rsp = q.get()
     
-    peer = rsp['peer']
+    ses_id = rsp['ses_id']
+    
+    peer.ses_id = ses_id
+    
     return peer
 
 def _peer_add_reqpkt_to_client(client_mq, req_pkt):
@@ -207,7 +213,6 @@ def handle_peer(sock, addr):
         sock.close()
         return
     
-    #client = CM.get_client(subdom)
     client_mq = get_client_mq(CM, subdom)
     
     peer = _add_peer_to_client(client_mq, sock)
@@ -222,6 +227,14 @@ def handle_peer(sock, addr):
     
     while True:
         wlist = []
+        
+        try:
+            msg = peer.in_mq.get_nowait()
+            rsp = msg['pkt']
+            peer.rsp_list.append(rsp)
+        except gevent.queue.Empty:
+            pass
+        
         if len(peer.rsp_list) > 0:
             wlist.append(sock)
             
