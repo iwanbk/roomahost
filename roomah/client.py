@@ -41,11 +41,11 @@ class Client:
     def _del_peer(self, ses_id):
         del self.peers_mq[ses_id]
     
-    def process_msg(self):
+    def _do_process_msg(self):
         try:
             msg = self.in_mq.get_nowait()
         except gevent.queue.Empty:
-            return
+            return 0
         
         if msg['mt'] == self.MT_PEER_ADD_REQ:
             q = msg['q']
@@ -69,6 +69,14 @@ class Client:
             self._add_req_pkt(req_pkt)
         else:
             print "Client.process_msg.unknown_message"
+        
+        return 1
+    
+    def process_msg(self):
+        '''Process message to this client.'''
+        for i in range(0, 10):
+            if self._do_process_msg() == 0:
+                break
             
     def _inc_ses_id(self, ses_id):
         if ses_id == 255:
@@ -126,33 +134,33 @@ class Client:
         self.wait_ping_rsp = False
         
     def procsess_rsp_pkt(self, ba, ba_len):
-        #preliminary cek
+        '''Forwad RSP Pkt to peer.'''
+        #len checking
         if ba_len < packet.MIN_HEADER_LEN:
             print "FATAL:packet too small. discard"
             sys.exit(-1)
         
+        #build rsp_packet
         rsp = packet.DataRsp(ba)
+        
+        #get ses_id
         ses_id = rsp.get_sesid()
         
         if rsp.cek_valid() == False:
             print "FATAL : bukan DATA RSP"
             packet.print_header(rsp.payload)
             sys.exit(-1)
-            
-        #print "process_rsp_pkt.ses_id = ", ses_id, ".ba_len = ", ba_len
         
+        #get peer mq
         if ses_id not in self.peers_mq:
             '''ses_id sudah tidak ada.discard packet.'''
             return
-        """
-        peer = self.peers[ses_id]
         
-        #forward
-        peer.rsp_list.append(rsp)
-        """
+        peer_mq = self.peers_mq[ses_id]
+        
+        #send RSP-PKT to peer mq
         msg = {}
         msg['mt'] = Peer.MT_ADD_RSP_PKT
         msg['pkt'] = rsp
         
-        peer_mq = self.peers_mq[ses_id]
         peer_mq.put(msg)
