@@ -6,6 +6,7 @@ import packet
 import mysock
 
 class Peer:
+    RSP_FORWARD_NUM = 5
     MT_ADD_RSP_PKT = 1
     
     def __init__(self, sock, ses_id):
@@ -24,7 +25,7 @@ class Peer:
     def enq_rsp(self, payload):
         self.rsp_list.insert(0, payload)
     
-    def forward_rsp_pkt(self):
+    def _do_forward_rsp_pkt(self):
         '''Forward RSP pkt to peer.'''
         if len(self.rsp_list) == 0:
             return 0
@@ -35,10 +36,11 @@ class Peer:
         written, err = mysock.send(self.sock, data)
         if err != None:
             print "client.rsp_pkt_fwd err"
+            return -1
         
         if written < 0:
             print "FATAL ERROR.written < 0"
-            sys.exit(-1)
+            return -1
             
         if written != len(data):
             print "peer.forward_rsp_pkt partial "
@@ -48,3 +50,9 @@ class Peer:
             self.ended = True
             
         return written
+    
+    def forward_rsp_pkt(self):
+        for i in range(0, self.RSP_FORWARD_NUM):
+            written = self._do_forward_rsp_pkt()
+            if written <= 0:
+                break
