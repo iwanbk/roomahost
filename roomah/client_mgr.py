@@ -1,5 +1,7 @@
 import sys
 
+import gevent
+
 import packet
 import mysock
 
@@ -16,6 +18,7 @@ class Peer:
         self.ses_id = ses_id
         self.ended = False
         self.rsp_list = []
+        self.in_mq = gevent.queue.Queue(10)
     
     def close(self):
         if self.ended == False or len(self.rsp_list) > 0:
@@ -59,6 +62,7 @@ class Client:
         self.req_pkt = []
         self.wait_ping_rsp = False
         self.peers = {}
+        self.in_mq = gevent.queue.Queue(10)
     
     def add_peer(self, sock):
         ses_id = self._gen_ses_id()
@@ -152,18 +156,74 @@ class Client:
         #forward
         peer.rsp_list.append(rsp)
 
-class ClientMgr:
-    def __init__(self):
-        self.clients = {}
+class ClientMgr(gevent.Greenlet):
+    #message type
+    MT_CLIENT_ADD_REQ = 1
+    MT_CLIENT_ADD_RSP = 2
+    MT_CLIENT_DEL_REQ = 3
+    MT_CLIENT_DEL_RSP = 4
+    MT_CLIENT_GET_REQ = 5
+    MT_CLIENT_GET_RSP = 6
     
-    def add_client(self, user, sock):
+    PUT_TIMEOUT_DEFAULT = 5
+        
+    def __init__(self):
+        gevent.Greenlet.__init__(self)
+        self.clients = {}
+        
+        #queue of infinite size (gevent > 1.0)
+        self.in_mq = gevent.queue.Queue(0)
+    
+    def _run(self):
+        while True:
+            msg = self.in_mq.get(block = True, timeout = None)
+            self.proc_msg(msg)
+            gevent.sleep(0)
+            
+    def _add_client(self, user, sock):
         client = Client(user, sock)
         self.clients[str(user)] = client
         return client
     
-    def del_client(self, client):
+    def _del_client(self, client):
         del self.clients[str(client.user)]
         
-    def get_client(self, user_str):
+    def _get_client(self, user_str):
         return self.clients[user_str]
     
+    def proc_msg(self, msg):
+        if msg['mt'] == self.MT_CLIENT_ADD_REQ:
+            user = msg['user']
+            sock = msg['sock']
+            q = msg['q']
+            
+            print "CM.proc_msg.client_add user=", user
+            
+            client = self._add_client(user, sock)
+            
+            rep = {}
+            rep['mt'] = self.MT_CLIENT_ADD_RSP
+            rep['client'] = client
+            try:
+                q.put(rep, timeout = self.PUT_TIMEOUT_DEFAULT)
+            except gevent.queue.Full:
+                pass
+        
+        elif msg['mt'] == self.MT_CLIENT_DEL_REQ:
+            client = msg['client']
+            print "CM.proc_msg.client_del user=", client.user
+            self._del_client(client)
+        
+        elif msg['mt'] == self.MT_CLIENT_GET_REQ:
+            user_str = msg['user_str']
+            q = msg['q']
+            rsp = {}
+            rsp['mt'] = self.MT_CLIENT_GET_RSP
+            rsp['client'] = self._get_client(user_str)
+            try:
+                q.put(rsp, timeout = self.PUT_TIMEOUT_DEFAULT)
+            except gevent.queueu.Full:
+                pass
+            
+        else:
+            print "CM.proc_msg.unknown message"

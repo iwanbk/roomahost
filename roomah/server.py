@@ -10,6 +10,7 @@ from gevent import monkey; monkey.patch_all()
 
 
 import client_mgr
+from client_mgr import ClientMgr
 import mysock
 import packet
 from client_mgr import ReqPkt
@@ -62,6 +63,31 @@ def client_auth(sock):
     
     return user, AUTH_RES_OK
 
+def unregister_client(CM, client):
+    msg = {}
+    msg['mt'] = CM.MT_CLIENT_DEL_REQ
+    msg['client'] = client
+    
+    CM.in_mq.put(msg)
+    
+def register_client(CM, user, sock):
+    #prepare the message
+    q = gevent.queue.Queue(1)
+    msg = {}
+    msg['mt'] = ClientMgr.MT_CLIENT_ADD_REQ
+    msg['user'] = user
+    msg['sock'] = sock
+    msg['q'] = q
+    
+    #send the message
+    CM.in_mq.put(msg)
+    
+    #wait the reply
+    rsp = q.get()
+    client = rsp['client']
+    
+    return client
+    
 def handle_client(sock, addr):
     print "BASE_DOMAIN = ", BASE_DOMAIN
     print "sock = ", sock
@@ -72,8 +98,9 @@ def handle_client(sock, addr):
         print "AUTH failed"
         return
     
-    client = CM.add_client(user, sock)
-    #print "rsp len = ", len(rsp.payload), ".written = ", written
+    
+    #client = CM.add_client(user, sock)
+    client = register_client(CM, user, sock)
     
     while True:
         #jika ada di req pkt queue, kirim ke client
@@ -108,7 +135,8 @@ def handle_client(sock, addr):
 
         gevent.sleep(0)
     
-    CM.del_client(client)
+    #CM.del_client(client)
+    unregister_client(CM, client)
 
 def client_server(port):
     server = StreamServer(('0.0.0.0', port), handle_client)
@@ -124,7 +152,20 @@ def get_subdom(req, base_domain = BASE_DOMAIN):
         return None
     else:
         return host[:idx]
-        
+
+def get_client(CM, subdom):
+    q = gevent.queue.Queue(1)
+    msg = {}
+    msg['mt'] = ClientMgr.MT_CLIENT_GET_REQ
+    msg['user_str'] = subdom
+    msg['q'] = q
+    
+    CM.in_mq.put(msg)
+    
+    rsp = q.get()
+    client = rsp['client']
+    return client
+    
 def handle_peer(sock, addr):
     #print "##### peer baru ############"
     #print "sock = ", sock
@@ -146,7 +187,8 @@ def handle_peer(sock, addr):
         sock.close()
         return
     
-    client = CM.get_client(subdom)
+    #client = CM.get_client(subdom)
+    client = get_client(CM, subdom)
     
     peer = client.add_peer(sock)
     
@@ -193,11 +235,10 @@ def peer_server(port):
     server.serve_forever()
     
 if __name__ == '__main__':
-    global BASE_DOMAIN
     BASE_DOMAIN = sys.argv[1]
     group = gevent.pool.Group()
     cs = group.spawn(client_server, 3939)
     ps = group.spawn(peer_server, 4000)
-    
+    CM.start()
     #gevent.joinall([cs, ps])
     group.join()
