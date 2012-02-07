@@ -31,7 +31,7 @@ class ClientMgr(gevent.Greenlet):
     def _add_client(self, user, in_mq):
         self.clients_mq[str(user)] = in_mq
     
-    def _del_client(self, client):
+    def _del_client(self, user):
         del self.clients_mq[str(user)]
         
     def _get_client_mq(self, user_str):
