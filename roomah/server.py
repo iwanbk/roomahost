@@ -10,7 +10,7 @@ from gevent import monkey; monkey.patch_all()
 
 
 import client_mgr
-from client_mgr import ClientMgr
+from client_mgr import ClientMgr, Client
 import mysock
 import packet
 from client_mgr import ReqPkt
@@ -103,9 +103,7 @@ def handle_client(sock, addr):
     client = register_client(CM, user, sock)
     
     while True:
-        #jika ada di req pkt queue, kirim ke client
-        #if len(client.req_pkt) > 0:
-        #    client.req_pkt_fwd(1)
+        client.process_msg()
         
         #select() sock
         wlist = []
@@ -128,8 +126,10 @@ def handle_client(sock, addr):
         
         
         if len(wsocks) > 0:
+            #forward http request packet to client
             if client.req_pkt_fwd(1) == False:
                 break
+            #send PING-RSP to client
             if client.ping_rsp_send() == False:
                 break
 
@@ -166,6 +166,31 @@ def get_client(CM, subdom):
     client = rsp['client']
     return client
     
+def _add_peer_to_client(client, sock):
+    q = gevent.queue.Queue(1)
+    msg = {}
+    msg['mt'] = Client.MT_PEER_ADD_REQ
+    msg['sock'] = sock
+    msg['q'] = q
+    client.in_mq.put(msg)
+    
+    rsp = q.get()
+    
+    peer = rsp['peer']
+    return peer
+
+def _peer_add_reqpkt_to_client(client, req_pkt):
+    msg = {}
+    msg['mt'] = Client.MT_REQPKT_ADD_REQ
+    msg['req_pkt'] = req_pkt
+    client.in_mq.put(msg)
+
+def _peer_del_from_client(client, peer):
+    msg = {}
+    msg['mt'] = Client.MT_PEER_DEL_REQ
+    msg['ses_id'] = peer.ses_id
+    client.in_mq.put(msg)
+    
 def handle_peer(sock, addr):
     #print "##### peer baru ############"
     #print "sock = ", sock
@@ -190,7 +215,7 @@ def handle_peer(sock, addr):
     #client = CM.get_client(subdom)
     client = get_client(CM, subdom)
     
-    peer = client.add_peer(sock)
+    peer = _add_peer_to_client(client, sock)
     
     if peer == None:
         print "can't add peer. MAX_CONN REACHED?"
@@ -198,7 +223,7 @@ def handle_peer(sock, addr):
     
     #print "peer baru.ses_id =", peer.ses_id
     req_pkt = ReqPkt(peer, ba)
-    client.add_req_pkt(req_pkt)
+    _peer_add_reqpkt_to_client(client, req_pkt)
     
     while True:
         wlist = []
@@ -212,18 +237,18 @@ def handle_peer(sock, addr):
             if len(ba) == 0:
                 #peer close the socket
                 peer.close()
-                client.del_peer(peer.ses_id)
+                _peer_del_from_client(client, peer)
                 break    
             elif len(ba) > 0:
                 req_pkt = ReqPkt(peer, ba)
-                client.add_req_pkt(req_pkt)
+                _peer_add_reqpkt_to_client(client, req_pkt)
         
         if len(wsocks) > 0:
             peer.forward_rsp_pkt()
         
         if peer.ended == True and len(peer.rsp_list) == 0:
             peer.close()
-            client.del_peer(peer.ses_id)
+            _peer_del_from_client(client, peer)
             break
         
         gevent.sleep(0)

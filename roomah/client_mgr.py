@@ -55,6 +55,13 @@ class Peer:
         return written
         
 class Client:
+    MT_PEER_ADD_REQ = 1
+    MT_PEER_ADD_RSP = 2
+    MT_PEER_DEL_REQ = 3
+    MT_PEER_DEL_RSP = 4
+    MT_REQPKT_ADD_REQ = 5
+    MT_REQPKT_ADD_RSP = 6
+
     def __init__(self, user, sock):
         self.ses_id = 1
         self.user = user
@@ -64,7 +71,7 @@ class Client:
         self.peers = {}
         self.in_mq = gevent.queue.Queue(10)
     
-    def add_peer(self, sock):
+    def _add_peer(self, sock):
         ses_id = self._gen_ses_id()
         if ses_id == None:
             return None
@@ -73,9 +80,36 @@ class Client:
         
         return peer
     
-    def del_peer(self, ses_id):
+    def _del_peer(self, ses_id):
         del self.peers[ses_id]
     
+    def process_msg(self):
+        try:
+            msg = self.in_mq.get_nowait()
+        except gevent.queue.Empty:
+            return
+        
+        if msg['mt'] == self.MT_PEER_ADD_REQ:
+            sock = msg['sock']
+            q = msg['q']
+            peer = self._add_peer(sock)
+            rsp = {}
+            rsp['mt'] = self.MT_PEER_ADD_RSP
+            rsp['peer'] = peer
+            try:
+                q.put(rsp)
+            except gevent.queue.Full:
+                pass
+        elif msg['mt'] == self.MT_PEER_DEL_REQ:
+            ses_id = msg['ses_id']
+            self._del_peer(ses_id)
+            
+        elif msg['mt'] == self.MT_REQPKT_ADD_REQ:
+            req_pkt = msg['req_pkt']
+            self._add_req_pkt(req_pkt)
+        else:
+            print "Client.process_msg.unknown_message"
+            
     def _inc_ses_id(self, ses_id):
         if ses_id == 255:
             return 1
@@ -96,7 +130,7 @@ class Client:
         
         return ses_id
     
-    def add_req_pkt(self, req_pkt):
+    def _add_req_pkt(self, req_pkt):
         '''add req pkt from to client's req_pkt list'''
         self.req_pkt.append(req_pkt)
     
