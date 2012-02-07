@@ -247,9 +247,10 @@ def handle_peer(sock, addr):
         wlist = []
         
         try:
-            msg = peer.in_mq.get_nowait()
-            rsp = msg['pkt']
-            peer.rsp_list.append(rsp)
+            for i in range(0, Peer.RSP_FORWARD_NUM):
+                msg = peer.in_mq.get_nowait()
+                rsp = msg['pkt']
+                peer.rsp_list.append(rsp)
         except gevent.queue.Empty:
             pass
         
@@ -259,6 +260,7 @@ def handle_peer(sock, addr):
         rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
         
         if len(rsocks) > 0:
+            #TODO : buat fungsi sendiri . seperti peer.forward_rsp_pkt, di-loop
             ba, err = mysock.recv(sock, BUF_LEN)
             if len(ba) == 0:
                 #peer close the socket
