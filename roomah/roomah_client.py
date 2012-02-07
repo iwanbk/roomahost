@@ -1,3 +1,6 @@
+"""
+Client untuk roomahost
+"""
 import sys
 import socket
 import select
@@ -14,6 +17,7 @@ host_conns_dict = {}
 rsp_list = []
 
 class HostConn:
+    '''Connection to host.'''
     def __init__(self, ses_id):
         self.sock = None
         self.ses_id = ses_id
@@ -21,8 +25,13 @@ class HostConn:
         self.rsp_list = []
 
 def clean_host_conn():
+    '''Clean HostConn untuk client ini.
+    
+    HostConn yang didelete adalah yang telah di mark ended
+    dan rsp_list nya sudah kosong
+    '''
     to_del = []
-    for k,h_conn in host_conns_dict.iteritems():
+    for h_conn in host_conns_dict.itervalues():
         if h_conn.ended == True and len(h_conn.rsp_list) == 0:
             to_del.append(h_conn)
     
@@ -30,27 +39,28 @@ def clean_host_conn():
         del_host_conn(h_conn.ses_id, h_conn)
 
 class HostRsp:
+    '''Response from host.'''
     def __init__(self, h_conn, payload):
         self.conn = h_conn
         self.payload = payload
         
 def get_host_conn_by_sock(sock):
+    '''Get HostConn object dari sebuah socket ke host.'''
     if sock == None:
         return None
     
-    for k,v in host_conns_dict.iteritems():
-        h_conn = v
+    for h_conn in host_conns_dict.itervalues():
         if h_conn.sock == sock:
             return h_conn
     
     return None
+
 def del_host_conn(ses_id, h_conn):
-    #print "del host con.ses_id=", ses_id
-    #h_conn.sock.close()
+    '''Del HostConn by ses_id.'''
     h_conn.sock = None
     del host_conns_dict[ses_id]
 
-def forward_incoming_req_pkt(ba, ba_len):
+def forward_incoming_req_pkt(ba, ba_len, host_host, host_port):
     '''Forward incoming req packet to host.'''
     req = packet.DataReq(ba)
     if req.cek_valid() == False:
@@ -109,6 +119,7 @@ def accept_host_rsp(h_sock):
 
         
 def _send_rsp_pkt_to_server(rsp_pkt, server_sock):
+    '''Send response packet to server.'''
     written, err = mysock.send_all(server_sock, rsp_pkt.payload)
     if err != None:
         print "error sending packet to server"
@@ -119,7 +130,8 @@ def _send_rsp_pkt_to_server(rsp_pkt, server_sock):
         sys.exit(-1)
 
 def forward_host_rsp(server_sock):
-    for k,h_conn in host_conns_dict.iteritems():
+    '''Forward Host response ke server.'''
+    for h_conn in host_conns_dict.itervalues():
         if len(h_conn.rsp_list) > 0:
             ba = h_conn.rsp_list.pop(0)
             rsp_pkt = packet.DataRsp()
@@ -131,11 +143,11 @@ def forward_host_rsp(server_sock):
             _send_rsp_pkt_to_server(rsp_pkt, server_sock)
             
             if rsp_pkt.is_eof():
-                #del_host_conn(h_conn.ses_id, h_conn)
-                h_conn.ended == True
+                h_conn.ended = True
 
         
 class Client:
+    '''Client class.'''
     PING_REQ_PERIOD = 120
     PING_RSP_WAIT_TIME = PING_REQ_PERIOD / 2
     
@@ -146,7 +158,8 @@ class Client:
         self.wait_ping_rsp = False
     
     def cek_ping_req(self):
-        '''Cek waktu terakhir melakukan ping dan enqueue ping packet kalo sudah waktunya melakukan ping lagi.'''
+        '''Cek waktu terakhir melakukan ping
+        dan enqueue ping packet kalo sudah waktunya melakukan ping lagi.'''
         if time.time() - self.last_ping >= Client.PING_REQ_PERIOD:
             preq = packet.PingReq()
             self.to_server_pkt.append(preq)
@@ -233,21 +246,22 @@ def client_loop(server, port, user, passwd, host_host, host_port):
     
     #start looping
     while True:
-        '''cek last_ping'''
+        #cek last_ping
         client.cek_ping_req()
         
-        '''select untuk server sock'''
-        to_read, to_write, to_exc = select.select([server_sock], [server_sock], [], 0.1)
+        #select untuk server sock
+        to_read, to_write, _ = select.select([server_sock],
+            [server_sock], [], 0.1)
         
         if len(to_read) > 0:
             #read sock
-            ba,err = packet.get_all_data_pkt(server_sock)
+            ba, err = packet.get_all_data_pkt(server_sock)
             if ba is None or err != None:
                 print "Error : Connection to server"
                 break
             
             if ba[0] == packet.TYPE_DATA_REQ:
-                forward_incoming_req_pkt(ba, len(ba))
+                forward_incoming_req_pkt(ba, len(ba), host_host, host_port)
                 
             elif ba[0] == packet.TYPE_PING_RSP:
                 print "PING-RSP ", datetime.datetime.now()
@@ -257,23 +271,22 @@ def client_loop(server, port, user, passwd, host_host, host_port):
             forward_host_rsp(server_sock)
             if client.send_to_server_pkt() == False:
                 break
-            
+           
         clean_host_conn()
         
-        '''select() untuk host sock'''
+        #select() untuk host sock
         rlist = []
-        for k,v in host_conns_dict.iteritems():
-            h_conn = v
+        for h_conn in host_conns_dict.itervalues():
             if h_conn.sock != None and h_conn.ended == False:
                 rlist.append(h_conn.sock)
                 
-        h_read, h_write, h_exc = select.select(rlist, [], [], 0.1)
+        h_read, _, _ = select.select(rlist, [], [], 0.1)
         
         if len(h_read) > 0:
             for s in h_read:
                 accept_host_rsp(s)
         
-        '''cek ping rsp'''
+        #cek ping rsp
         if client.cek_ping_rsp() == False:
             print "PING-RSP timeout"
             break
