@@ -177,7 +177,7 @@ class Packet:
         return True
     
     def auth_req_build(self, user, password):
-        pack_len = 3 + len(user) + len(password)
+        #pack_len = 3 + len(user) + len(password)
         self.payload = bytearray(MIN_HEADER_LEN) + bytearray(user) + bytearray(password)
         self.payload[0] = self.type
         self.payload[1] = len(user)
