@@ -74,7 +74,7 @@ class Client:
     
     def process_msg(self):
         '''Process message to this client.'''
-        for i in range(0, 10):
+        for _ in xrange(0, 10):
             if self._do_process_msg() == 0:
                 break
             
@@ -128,7 +128,7 @@ class Client:
         written, err = mysock.send_all(self.sock, p_rsp.payload)
         
         if err != None or (len(p_rsp.payload) != written):
-            print "error sending PING-RSP to ", client.user
+            print "error sending PING-RSP to ", self.user
             return False
         
         self.wait_ping_rsp = False

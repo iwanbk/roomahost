@@ -3,9 +3,7 @@ import select
 
 import jsonrpclib
 from gevent.server import StreamServer
-import gevent
 import gevent.pool
-from gevent import queue
 from gevent import monkey; monkey.patch_all()
 
 
@@ -30,15 +28,15 @@ AUTH_RES_OK = 1
 AUTH_RES_UNKNOWN_ERR = 0
 
 def user_not_found_str(user):
-    str = "HTTP/1.1\n\
+    html = "HTTP/1.1\n\
 Server: nginx/1.1.11\n\
 Content-Type: text/html\n\
 Content-Length: 173\n\
 Connection: close\n\
 \r\n\
 "
-    str += user + " ga ketemu"
-    return str
+    html += user + " ga ketemu"
+    return html
 
 def client_auth_reply(sock):
     pass
@@ -70,8 +68,8 @@ def client_auth(sock):
     rsp = packet.Packet(packet.TYPE_AUTH_RSP)
     rsp.auth_rsp_build(packet.AUTH_RSP_OK)
     
-    written, err = mysock.send(sock, rsp.payload)
-    if err != None:
+    written, err = mysock.send_all(sock, rsp.payload)
+    if err != None or written != len(rsp.payload):
         print "can't send auth reply"
         return user, AUTH_RES_UNKNOWN_ERR
     
@@ -119,7 +117,7 @@ def handle_client(sock, addr):
             wlist.append(sock)
             
             
-        rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
+        rsocks, wsocks, _ = select.select([sock], wlist , [], 0.1)
         if len(rsocks) > 0:       
             ba, err = packet.get_all_data_pkt(sock)
             if ba is None or err is not None:
@@ -247,7 +245,7 @@ def handle_peer(sock, addr):
         wlist = []
         
         try:
-            for i in range(0, Peer.RSP_FORWARD_NUM):
+            for _ in xrange(0, Peer.RSP_FORWARD_NUM):
                 msg = peer.in_mq.get_nowait()
                 rsp = msg['pkt']
                 peer.rsp_list.append(rsp)
@@ -257,7 +255,7 @@ def handle_peer(sock, addr):
         if len(peer.rsp_list) > 0:
             wlist.append(sock)
             
-        rsocks,wsocks, xsocks = select.select([sock], wlist , [], 0.1)
+        rsocks,wsocks, _ = select.select([sock], wlist , [], 0.1)
         
         if len(rsocks) > 0:
             #TODO : buat fungsi sendiri . seperti peer.forward_rsp_pkt, di-loop

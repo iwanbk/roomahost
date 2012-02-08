@@ -2,15 +2,15 @@ import socket
 
 def connect(sock, addr):
     try:
-        ret = sock.connect(addr)
-    except socket.error as (errno, str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+        sock.connect(addr)
+    except socket.error as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return -1, errno
-    except socket.herror as (errno, str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+    except socket.herror as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return -1, errno
-    except socket.gaierror as (errno,str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+    except socket.gaierror as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return -1, errno
     except socket.timeout:
         return -1, errno.ETIMEDOUT
@@ -19,22 +19,22 @@ def connect(sock, addr):
 
 def _send(sock, payload):
     """Write payload to socket."""
-    len = 0
+    written = 0
     try:
-        len = sock.send(payload)
-    except socket.error as (errno, str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
-        return len, errno
-    except socket.herror as (errno, str):
-        print "socket.herror. Errno = ", errno, " err msg = ", str
-        return len, errno
-    except socket.gaierror as (errno,str):
-        print "socket.gaierror. Errno = ", errno, " err msg = ", str
-        return len, errno
+        written = sock.send(payload)
+    except socket.error as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
+        return written, errno
+    except socket.herror as (errno, err_str):
+        print "socket.herror. Errno = ", errno, " err msg = ", err_str
+        return written, errno
+    except socket.gaierror as (errno, err_str):
+        print "socket.gaierror. Errno = ", errno, " err msg = ", err_str
+        return written, errno
     except socket.timeout:
-        return len, errno.ETIMEDOUT
+        return written, errno.ETIMEDOUT
     
-    return len, None
+    return written, None
 
 def send(sock, payload):
     return _send(sock, payload)
@@ -55,38 +55,38 @@ def send_all(sock, data):
 def recv_str(sock, count):
     """Read count byte from socket."""
     try:
-        str = sock.recv(count)
-    except socket.error as (errno, str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+        recv_str = sock.recv(count)
+    except socket.error as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return None, errno
-    except socket.herror as (errno, str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+    except socket.herror as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return None, errno
-    except socket.gaierror as (errno,str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+    except socket.gaierror as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return None, errno
     except socket.timeout:
         return None, errno.ETIMEDOUT
     
-    return str, None
+    return recv, None
 
 def recv(sock, count):
     """Read count byte from socket."""
     try:
-        str = sock.recv(count)
-    except socket.error as (errno, str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+        recv_str = sock.recv(count)
+    except socket.error as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return None, errno
-    except socket.herror as (errno, str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+    except socket.herror as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return None, errno
-    except socket.gaierror as (errno,str):
-        print "socket.error. Errno = ", errno, " err msg = ", str
+    except socket.gaierror as (errno, err_str):
+        print "socket.error. Errno = ", errno, " err msg = ", err_str
         return None, errno
     except socket.timeout:
         return None, errno.ETIMEDOUT
     
-    ba = bytearray(str)
+    ba = bytearray(recv_str)
     return ba, None
 
 def recv_safe(sock, count):
@@ -97,8 +97,6 @@ def recv_safe(sock, count):
     
     if ba != None and len(ba) == 0:
         return None, err
-    
-    tot = len(ba)
     
     buf = ba
     

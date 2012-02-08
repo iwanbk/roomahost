@@ -1,6 +1,8 @@
-import sys
+"""
+Client Manager
+"""
+import gevent.queue
 
-import gevent
 class ClientMgr(gevent.Greenlet):
     '''
     Client Manager hanya menyimpan client_mq
@@ -63,7 +65,7 @@ class ClientMgr(gevent.Greenlet):
             
             try:
                 q.put(rsp, timeout = self.PUT_TIMEOUT_DEFAULT)
-            except gevent.queueu.Full:
+            except gevent.queue.Full:
                 pass
             
         else:

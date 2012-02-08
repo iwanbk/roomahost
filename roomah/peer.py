@@ -1,8 +1,9 @@
-import sys
-
+"""
+Class yang merepresentasikan satu Peer
+Peer adalah sebuah koneksi dari pengakses (misal : browser)
+"""
 import gevent
 
-import packet
 import mysock
 
 class Peer:
@@ -52,7 +53,7 @@ class Peer:
         return written
     
     def forward_rsp_pkt(self):
-        for i in range(0, self.RSP_FORWARD_NUM):
+        for _ in xrange(0, self.RSP_FORWARD_NUM):
             written = self._do_forward_rsp_pkt()
             if written <= 0:
                 break
