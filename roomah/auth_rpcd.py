@@ -17,10 +17,16 @@ def auth_client(username, password):
     
     return RES_UNKNOWN_ERR
 
+def domain_client(host):
+    if host == "master.labhijau.net":
+        return "paijo"
+    else:
+        return None
 def status_client(username):
     return user_dict[username]
 
 if __name__ == '__main__':
     server = SimpleJSONRPCServer(('0.0.0.0',4141 ))
     server.register_function(auth_client)
+    server.register_function(domain_client)
     server.serve_forever()

@@ -82,15 +82,28 @@ Connection: close\n\
     html += user + " ga ketemu"
     return html
 
-def get_subdom(req, base_domain=BASE_DOMAIN):
+def _get_client_own_domain(host):
+    '''Get client name yang memiliki own-domain.'''
+    import jsonrpclib
+    server = jsonrpclib.Server('http://localhost:4141')
+    res = server.domain_client(host)
+    return res
+
+def get_client_name(req, base_domain = BASE_DOMAIN):
+    '''Get client name dari HTTP Request header.'''
     header = http_utils.get_http_req_header(req)
-        
-    host = header['Host']
-    idx = host.find("." + base_domain)
-    if idx < 0:
+    
+    if header == None:
         return None
-    else:
-        return host[:idx]
+    try:
+        host = header['Host']
+        idx = host.find("." + base_domain)
+        if idx < 0:
+            return _get_client_own_domain(host)
+        else:
+            return host[:idx]
+    except AttributeError:
+        return None
 
 def get_client_mq(CM, subdom):
     q = gevent.queue.Queue(1)
@@ -149,14 +162,14 @@ def handle_peer(sock, addr):
         print "new-closed socket?"
         return
     
-    subdom = get_subdom(ba, BASE_DOMAIN)
+    client_name = get_client_name(ba, BASE_DOMAIN)
     
-    if subdom is None:
-        print "subdom not found"
+    if client_name is None:
+        print "client name not found"
         sock.close()
         return
     
-    client_mq = get_client_mq(CM, subdom)
+    client_mq = get_client_mq(CM, client_name)
     
     if client_mq == None:
         print "send user error"
