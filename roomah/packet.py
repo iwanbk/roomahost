@@ -15,6 +15,7 @@ TYPE_DATA_REQ = 3
 TYPE_DATA_RSP = 4
 TYPE_PING_REQ = 5
 TYPE_PING_RSP = 6
+TYPE_CTRL = 7
 '''
 Auth REQ packet
 header
@@ -160,6 +161,39 @@ class PingRsp(Ping):
     
     def cek_valid(self):
         return self.payload[0] == TYPE_PING_RSP
+
+class CtrlPkt():
+    '''
+    Header
+    (0) type
+    (1) subtype
+    
+    Data
+    None
+    '''
+    T_PEER_DEAD = 1
+    def __init__(self, payload = None):
+        self.payload = payload
+    
+    def get_type(self):
+        return self.payload[1]
+        
+    def cek_valid(self):
+        if self.payload != None:
+            return (self.payload[0] == TYPE_CTRL)
+            
+        return True
+    ####### peer dead ##########
+    def build_peer_dead(self, ses_id):
+        payload = bytearray(5)
+        payload[0] = TYPE_CTRL
+        payload[1] = self.T_PEER_DEAD
+        payload[2] = ses_id
+        
+        self.payload = payload
+    
+    def peer_dead_ses_id(self):
+        return self.payload[2]
         
 class Packet:
     def __init__(self, type = None, payload = None):
