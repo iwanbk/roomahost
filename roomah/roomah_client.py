@@ -23,7 +23,24 @@ class HostConn:
         self.ses_id = ses_id
         self.ended = False
         self.rsp_list = []
+    
+    def reset(self):
+        '''reset semua value (set None).'''
+        try:
+            self.sock.close()
+        except Exception:
+            pass
+        
+        self.sock = None
+        self.rsp_list = []
 
+class HostRsp:
+    '''Response from host.'''
+    def __init__(self, h_conn, payload):
+        self.conn = h_conn
+        self.payload = payload
+        
+        
 def clean_host_conn():
     '''Clean HostConn untuk client ini.
     
@@ -38,12 +55,6 @@ def clean_host_conn():
     for h_conn in to_del:
         del_host_conn(h_conn.ses_id, h_conn)
 
-class HostRsp:
-    '''Response from host.'''
-    def __init__(self, h_conn, payload):
-        self.conn = h_conn
-        self.payload = payload
-        
 def get_host_conn_by_sock(sock):
     '''Get HostConn object dari sebuah socket ke host.'''
     if sock == None:
@@ -55,9 +66,18 @@ def get_host_conn_by_sock(sock):
     
     return None
 
-def del_host_conn(ses_id, h_conn):
+def del_host_conn(ses_id, h_conn = None):
     '''Del HostConn by ses_id.'''
-    h_conn.sock = None
+    conn = h_conn
+    if conn == None:
+        try:
+            conn = host_conns_dict[ses_id]
+        except KeyError:
+            print "key_error"
+            #sys.exit(-1)
+            return
+    print "del host conn"    
+    conn.reset()
     del host_conns_dict[ses_id]
 
 def forward_incoming_req_pkt(ba, ba_len, host_host, host_port):
@@ -120,6 +140,7 @@ def accept_host_rsp(h_sock):
         
 def _send_rsp_pkt_to_server(rsp_pkt, server_sock):
     '''Send response packet to server.'''
+    print "#"
     written, err = mysock.send_all(server_sock, rsp_pkt.payload)
     if err != None:
         print "error sending packet to server"
@@ -181,6 +202,23 @@ class Client:
         '''Handle PING-RSP.'''
         self.wait_ping_rsp = False
         self.last_ping = time.time()
+    
+    def handle_ctrl_pkt(self, ba):
+        pkt = packet.CtrlPkt(ba)
+        if pkt.cek_valid() == False:
+            return False
+        
+        type = pkt.get_type()
+        if type == pkt.T_PEER_DEAD:
+            ses_id = pkt.peer_dead_ses_id()
+            self.handle_peer_dead(ses_id)
+        else:
+            print "Unknown control packet"
+            sys.exit(-1)
+        
+    def handle_peer_dead(self, ses_id):
+        print "handle_peer_dead. 675999987"
+        del_host_conn(ses_id)
         
     def send_to_server_pkt(self):
         '''Send packet di queue ke server.'''
@@ -266,6 +304,13 @@ def client_loop(server, port, user, passwd, host_host, host_port):
             elif ba[0] == packet.TYPE_PING_RSP:
                 print "PING-RSP ", datetime.datetime.now()
                 client.handle_ping_rsp(ba)
+            
+            elif ba[0] == packet.TYPE_CTRL:
+                print "CTRL Packet. subtype = ", ba[1]
+                client.handle_ctrl_pkt(ba)
+            else:
+                print "Unknown packet.type = ", ba[0]
+                sys.exit(-1)
         
         if len(to_write) > 0:
             forward_host_rsp(server_sock)

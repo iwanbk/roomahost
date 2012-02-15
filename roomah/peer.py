@@ -190,6 +190,7 @@ def handle_peer(sock, addr):
     while True:
         wlist = []
         
+        #fetch RSP Pkt
         try:
             for _ in xrange(0, Peer.RSP_FORWARD_NUM):
                 msg = peer.in_mq.get_nowait()
@@ -198,16 +199,19 @@ def handle_peer(sock, addr):
         except gevent.queue.Empty:
             pass
         
+        #select() sock utk write jika ada RSP-pkt
         if len(peer.rsp_list) > 0:
             wlist.append(sock)
             
         rsocks, wsocks, _ = select.select([sock], wlist , [], 0.1)
         
+        #sock bisa di read
         if len(rsocks) > 0:
             #TODO : buat fungsi sendiri . seperti peer.forward_rsp_pkt, di-loop
             ba, err = mysock.recv(sock, BUF_LEN)
             if len(ba) == 0:
                 #peer close the socket
+                #print "peer ended"
                 peer.close()
                 _peer_del_from_client(client_mq, peer)
                 break    

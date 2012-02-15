@@ -35,11 +35,27 @@ class Client:
     def __init__(self, user, sock):
         self.ses_id = 1
         self.user = user
+        
+        #socket for this user
         self.sock = sock
+        
+        #list of request packet from peer
         self.req_pkt = []
+        
+        #list of ctrt packet
+        self.ctrl_pkt = []
+        
+        #true jika client ini sedang menunggu ping RSP
         self.wait_ping_rsp = False
+        
+        #dict of peers mq
         self.peers_mq = {}
+        
+        #input mq
         self.in_mq = gevent.queue.Queue(10)
+        
+        #if dead
+        self.dead = False
     
     def _add_peer(self, in_mq):
         ses_id = self._gen_ses_id()
@@ -59,6 +75,7 @@ class Client:
             return 0
         
         if msg['mt'] == self.MT_PEER_ADD_REQ:
+            '''Add Peer.'''
             q = msg['q']
             in_mq = msg['in_mq']
             ses_id = self._add_peer(in_mq)
@@ -72,6 +89,8 @@ class Client:
                 pass
             
         elif msg['mt'] == self.MT_PEER_DEL_REQ:
+            '''Del Peer.'''
+            #print "[Client]del peer with ses_id=", msg['ses_id']
             ses_id = msg['ses_id']
             self._del_peer(ses_id)
             
@@ -90,12 +109,14 @@ class Client:
                 break
             
     def _inc_ses_id(self, ses_id):
+        '''Increase session id.'''
         if ses_id == 255:
             return 1
         else:
             return ses_id + 1
-        
+    
     def _gen_ses_id(self):
+        '''Generate session id.'''
         start_id = self.ses_id
         
         ses_id = start_id
@@ -127,7 +148,22 @@ class Client:
         
         if written != len(req_pkt.payload) or err != None:
             print "failed to send req pkt to client"
+            self.dead = True
             return False
+    
+    def send_ctrl_pkt(self):
+        '''send ctrl packet to client.'''
+        if len(self.ctrl_pkt) == 0:
+            return True
+        
+        print "send ctrl pkt to client"
+        pkt = self.ctrl_pkt.pop(0)
+        written, err = mysock.send_all(self.sock, pkt.payload)
+        if written != len(pkt.payload) or err != None:
+            print "failed to send ctrl_pkt to client"
+            self.dead = True
+            return False
+        return True
     
     def ping_rsp_send(self):
         '''Send PING-RSP to client.'''
@@ -160,11 +196,17 @@ class Client:
         if rsp.cek_valid() == False:
             print "FATAL : bukan DATA RSP"
             packet.print_header(rsp.payload)
-            sys.exit(-1)
+            return False
         
         #get peer mq
         if ses_id not in self.peers_mq:
-            '''ses_id sudah tidak ada.discard packet.'''
+            '''ses_id sudah tidak ada.
+            - discard packet
+            - kirim notifikasi ke client bahwa ses_id ini sudah dead
+            '''
+            peerDeadPkt = packet.CtrlPkt()
+            peerDeadPkt.build_peer_dead(ses_id)
+            self.ctrl_pkt.append(peerDeadPkt)
             return
         
         peer_mq = self.peers_mq[ses_id]
@@ -247,11 +289,12 @@ def handle_client(sock, addr):
     register_client(CM, cli.user, cli.in_mq)
     
     while True:
+        #process incoming messages
         cli.process_msg()
         
         #select() sock
         wlist = []
-        if len(cli.req_pkt) > 0 or cli.wait_ping_rsp == True:
+        if len(cli.req_pkt) > 0 or cli.wait_ping_rsp == True or len(cli.ctrl_pkt) > 0:
             wlist.append(sock)
             
             
@@ -270,6 +313,8 @@ def handle_client(sock, addr):
         
         
         if len(wsocks) > 0:
+            if cli.send_ctrl_pkt() == False:
+                break
             #forward http request packet to client
             if cli.req_pkt_fwd(1) == False:
                 break
