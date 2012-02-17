@@ -79,7 +79,9 @@ Content-Length: 173\n\
 Connection: close\n\
 \r\n\
 "
-    html += user + " ga ketemu"
+    html += "<html><body>"
+    html += "<center><big><b>" + user + " </b> sedang tidak online</big></center>"
+    html += "</body></html>"
     return html
 
 def _get_client_own_domain(host):
@@ -172,8 +174,8 @@ def handle_peer(sock, addr):
     client_mq = get_client_mq(CM, client_name)
     
     if client_mq == None:
-        print "send user error"
-        str_err = user_not_found_str(subdom)
+        print "Send 'client not online' message to peer. Client = ", client_name
+        str_err = user_not_found_str(client_name)
         mysock.send_all(sock, str_err)
         return
     
