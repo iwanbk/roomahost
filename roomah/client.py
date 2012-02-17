@@ -9,12 +9,13 @@ from peer import Peer
 import packet
 import mysock
 import auth_rpcd
+import rhconf
 from client_mgr import ClientMgr
 
 AUTH_RES_OK = 1
 AUTH_RES_UNKNOWN_ERR = 0
 
-auth_server = jsonrpclib.Server('http://localhost:4141')
+auth_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
 
 BUF_LEN = 1024
 CM = None
@@ -223,7 +224,7 @@ def client_auth_reply(sock):
     pass
 
 def client_auth_rpc(username, password):
-    res = auth_server.auth_client(str(username), str(password))
+    res = auth_server.rh_auth_client_plain(str(username), str(password))
     return res
 
 def client_auth(sock):
