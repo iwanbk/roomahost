@@ -1,1 +1,1 @@
-AUTH_SERVER_URL = "http://localhost:8000/paijon/"
+AUTH_SERVER_URL = "http://localhost:6565/paijon/"
