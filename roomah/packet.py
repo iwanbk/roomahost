@@ -1,4 +1,5 @@
 import sys
+import hashlib
 
 import mysock
 
@@ -28,6 +29,27 @@ payload
 - pass (pass len)
 '''
 
+class AuthReq:
+    def __init__(self, payload = None):
+        self.payload = payload
+    
+    def cek_valid(self):
+        return self.payload[0] == TYPE_AUTH_REQ
+    
+    def build(self, user, password):
+        pass_hash = hashlib.sha1(password).hexdigest()
+        self.payload = bytearray(MIN_HEADER_LEN) + bytearray(user) + bytearray(pass_hash)
+        self.payload[0] = TYPE_AUTH_REQ
+        self.payload[1] = len(user)
+        self.payload[2] = len(pass_hash)
+    
+    def get_userpassword(self):
+        user_len = self.payload[1]
+        user = self.payload[MIN_HEADER_LEN : MIN_HEADER_LEN + user_len]
+        
+        pass_len = self.payload[2]
+        password = self.payload[MIN_HEADER_LEN + user_len : MIN_HEADER_LEN + user_len + pass_len]
+        return user, password
 '''
 AUTH RSP Packet
 header
@@ -38,6 +60,22 @@ payload
 '''
 AUTH_RSP_OK = 1
 AUTH_RSP_FAILED = 2
+
+class AuthRsp:
+    def __init__(self, payload = None):
+        self.payload = payload
+    
+    def build(self, val):
+        self.payload = bytearray(MIN_HEADER_LEN + 1)
+        self.payload[0] = TYPE_AUTH_RSP
+        self.payload[MIN_HEADER_LEN] = val
+        
+    def cek(self):
+        '''Cek apakah ini packet auth rsp.'''
+        return self.payload[0] == TYPE_AUTH_RSP and len(self.payload) == MIN_HEADER_LEN + 1
+    
+    def get_val(self):
+        return self.payload[MIN_HEADER_LEN]
     
 class DataReq:
     '''
@@ -202,42 +240,6 @@ class Packet:
     
     def get_type(self):
         return self.payload[0]
-        
-    
-    def auth_req_cek(self):
-        if self.payload[0] != TYPE_AUTH_REQ:
-            return False
-        self.type = TYPE_AUTH_REQ
-        return True
-    
-    def auth_req_build(self, user, password):
-        #pack_len = 3 + len(user) + len(password)
-        self.payload = bytearray(MIN_HEADER_LEN) + bytearray(user) + bytearray(password)
-        self.payload[0] = self.type
-        self.payload[1] = len(user)
-        self.payload[2] = len(password)
-    
-    def auth_req_get_userpassword(self):
-        user_len = self.payload[1]
-        user = self.payload[MIN_HEADER_LEN : MIN_HEADER_LEN + user_len]
-        
-        pass_len = self.payload[2]
-        password = self.payload[MIN_HEADER_LEN + user_len : MIN_HEADER_LEN + user_len + pass_len]
-        return user, password
-    
-    def auth_rsp_cek(self):
-        '''Cek apakah ini packet auth rsp.'''
-        return self.payload[0] == TYPE_AUTH_RSP and len(self.payload) == MIN_HEADER_LEN + 1
-    
-    def auth_rsp_build(self, val):
-        self.type = TYPE_AUTH_RSP
-        self.payload = bytearray(MIN_HEADER_LEN + 1)
-        self.payload[0] = TYPE_AUTH_RSP
-        self.payload[MIN_HEADER_LEN] = val
-    
-    def auth_rsp_get_val(self):
-        return self.payload[MIN_HEADER_LEN]
-
 
 def print_header(payload):
     print "====== header ======="
