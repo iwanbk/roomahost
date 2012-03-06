@@ -4,6 +4,7 @@ import select
 import gevent
 from gevent.server import StreamServer
 import jsonrpclib
+import puka
 
 from peer import Peer
 import packet
@@ -14,6 +15,7 @@ from client_mgr import ClientMgr
 
 AUTH_RES_OK = 1
 AUTH_RES_UNKNOWN_ERR = 0
+AUTH_RES_PKT_ERR = -1
 
 auth_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
 
@@ -219,44 +221,47 @@ class Client:
         
         peer_mq.put(msg)
 
+def rabbit_conn():
+    client = puka.Client("amqp://localhost/")
+    promise = client.connect()
+    client.wait(promise)
+
+    promise = client.queue_declare(queue='test')
+    client.wait(promise)
+
+
 
 def client_auth_reply(sock):
     pass
 
-def client_auth_rpc(username, password):
-    res = auth_server.rh_auth_client_plain(str(username), str(password))
+def client_auth_rpc_hashed(username, password):
+    res = auth_server.rh_auth(str(username), str(password))
     return res
 
-def client_auth(sock):
-    #get auth req
+def client_auth_hashed(sock):
     ba, err = mysock.recv(sock, BUF_LEN)
     if err != None:
         print "can't recv auth req"
+        return None, AUTH_RES_UNKNOWN_ERR
     
-    pkt = packet.Packet(None, ba)
+    auth_req = packet.AuthReq(ba)
+    if auth_req.cek_valid() == False:
+        return None, AUTH_RES_PKT_ERR
     
-    if pkt.auth_req_cek() == False:
-        print "Bukan Paket AUTH REQ"
-        sys.exit(-1)
-    
-    user, password = pkt.auth_req_get_userpassword()
-    print "user = ", user
-    print "password = ", password
-    
-    if client_auth_rpc(user, password) != auth_rpcd.RES_OK:
-        print "auth error"
+    user, password = auth_req.get_userpassword()
+    if client_auth_rpc_hashed(user, password) != True:
+        print "auth rpc failed"
         return user, AUTH_RES_UNKNOWN_ERR
     
-    rsp = packet.Packet(packet.TYPE_AUTH_RSP)
-    rsp.auth_rsp_build(packet.AUTH_RSP_OK)
-    
-    written, err = mysock.send_all(sock, rsp.payload)
-    if err != None or written != len(rsp.payload):
-        print "can't send auth reply"
+    auth_rsp = packet.AuthRsp()
+    auth_rsp.build(packet.AUTH_RSP_OK)
+    written, err = mysock.send_all(sock, auth_rsp.payload)
+    if err != None or written < len(auth_rsp.payload):
+        print "send auth reply failed"
         return user, AUTH_RES_UNKNOWN_ERR
     
     return user, AUTH_RES_OK
-
+    
 def unregister_client(CM, client):
     msg = {}
     msg['mt'] = CM.MT_CLIENT_DEL_REQ
@@ -281,13 +286,17 @@ def handle_client(sock, addr):
     print "sock = ", sock
     print "addr = ", addr
     
-    user, auth_res = client_auth(sock)
+    #user, auth_res = client_auth(sock)
+    user, auth_res = client_auth_hashed(sock)
     if auth_res != AUTH_RES_OK:
         print "AUTH failed"
         return
     
     cli = Client(user, sock)
-    register_client(CM, cli.user, cli.in_mq)
+    if register_client(CM, cli.user, cli.in_mq) == False:
+        print "REGISTER failed"
+        return
+    
     
     while True:
         #process incoming messages

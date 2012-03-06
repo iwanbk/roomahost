@@ -239,6 +239,26 @@ class Client:
         
         return True
 
+def do_auth(user, password, server_sock):
+    auth_req = packet.AuthReq()
+    auth_req.build(user, password)
+    
+    written, err = mysock.send(server_sock, auth_req.payload)
+    if err != None or written < len(auth_req.payload):
+        print "can't send auth req to server.err = ", err
+        return False
+    
+    ba, err = mysock.recv(server_sock, 1024)
+    if err != None:
+        print "failed to get auth reply"
+        return False
+    
+    rsp = packet.AuthRsp(ba)
+    if rsp.get_val() != packet.AUTH_RSP_OK:
+        print "AUTH_RSP_FAILED"
+        return False
+    return True
+    
 def client_loop(server, port, user, passwd, host_host, host_port):
     #connect to server
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -249,34 +269,10 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         print "can't connect to server"
         sys.exit(-1)
     
-    #send auth req
-    pkt = packet.Packet(packet.TYPE_AUTH_REQ)
-    pkt.auth_req_build(user, passwd)
-    written, err = mysock.send(server_sock, pkt.payload)
-    if err != None:
-        print "can't send auth req to server"
-        print "err = ", err
-        sys.exit(-1)
-    
-    print "pkt len = ", len(pkt.payload)
-    print "sent len = ", written
-    
-    ba, err = mysock.recv(server_sock, 1024)
-    
-    if err != None:
-        print "failed to get auth reply"
-        sys.exit(-1)
-    
-    rsp = packet.Packet()
-    rsp.payload = ba
-    if rsp.auth_rsp_cek() == False:
-        print "bukan auth rsp"
-        sys.exit(-1)
-    
-    if rsp.auth_rsp_get_val() != packet.AUTH_RSP_OK:
-        print "auth failed"
-        sys.exit(-1)
-    
+    if do_auth(user, passwd, server_sock) == False:
+        print "Auth failed"
+        sys.exit(1)
+        
     print "AUTH OK"
     #server_sock.setblocking(0)
     
