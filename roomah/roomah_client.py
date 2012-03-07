@@ -76,7 +76,7 @@ def del_host_conn(ses_id, h_conn = None):
             print "key_error"
             #sys.exit(-1)
             return
-    print "del host conn"    
+    #print "del host conn"    
     conn.reset()
     del host_conns_dict[ses_id]
 
@@ -140,7 +140,7 @@ def accept_host_rsp(h_sock):
         
 def _send_rsp_pkt_to_server(rsp_pkt, server_sock):
     '''Send response packet to server.'''
-    print "#"
+    #print "#"
     written, err = mysock.send_all(server_sock, rsp_pkt.payload)
     if err != None:
         print "error sending packet to server"
