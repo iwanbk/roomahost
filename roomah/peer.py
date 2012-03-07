@@ -5,15 +5,23 @@ import select
 
 import gevent
 from gevent.server import StreamServer
+import jsonrpclib
 
 import mysock
 import client
 import http_utils
+import rhconf
 from client_mgr import ClientMgr
 
 BASE_DOMAIN = ""
 CM = None
 BUF_LEN = 1024
+
+def report_usage(username, trf_req, trf_rsp):
+    '''Report data transfer usage.'''
+    stat_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
+    res = stat_server.usage_add(username, trf_req, trf_rsp)
+    print "report usage. res = ", res
 
 class Peer:
     """
@@ -29,6 +37,12 @@ class Peer:
         self.ended = False
         self.rsp_list = []
         self.in_mq = gevent.queue.Queue(10)
+        
+        #Transferred RSP packet, in bytes
+        self.trf_rsp = 0
+        
+        #transferred Req packets, in bytes
+        self.trf_req = 0
     
     def close(self):
         if self.ended == False or len(self.rsp_list) > 0:
@@ -70,6 +84,7 @@ class Peer:
             written = self._do_forward_rsp_pkt()
             if written <= 0:
                 break
+            self.trf_rsp += written
 
 def user_not_found_str(user):
     html = "HTTP/1.1\n\
@@ -155,6 +170,7 @@ def handle_peer(sock, addr):
     #print "sock = ", sock
     #print "addr = ", addr
     
+    #get request
     ba, err = mysock.recv(sock, BUF_LEN)
     if err != None:
         print "recv error"
@@ -164,6 +180,7 @@ def handle_peer(sock, addr):
         print "new-closed socket?"
         return
     
+    #get client name
     client_name = get_client_name(ba, BASE_DOMAIN)
     
     if client_name is None:
@@ -179,6 +196,7 @@ def handle_peer(sock, addr):
         mysock.send_all(sock, str_err)
         return
     
+    #register peer to client
     peer = _add_peer_to_client(client_mq, sock)
     
     if peer == None:
@@ -186,8 +204,11 @@ def handle_peer(sock, addr):
         return
     
     #print "peer baru.ses_id =", peer.ses_id
+    
+    #forward request packet to client
     req_pkt = client.ReqPkt(peer, ba)
     _peer_add_reqpkt_to_client(client_mq, req_pkt)
+    peer.trf_req += len(req_pkt.payload)
     
     while True:
         wlist = []
@@ -220,6 +241,7 @@ def handle_peer(sock, addr):
             elif len(ba) > 0:
                 req_pkt = client.ReqPkt(peer, ba)
                 _peer_add_reqpkt_to_client(client_mq, req_pkt)
+                peer.trf_req += len(req_pkt.payload)
         
         if len(wsocks) > 0:
             peer.forward_rsp_pkt()
@@ -230,6 +252,9 @@ def handle_peer(sock, addr):
             break
         
         gevent.sleep(0)
+    
+    #send usage to server
+    report_usage(client_name, peer.trf_req, peer.trf_rsp)
         
 def peer_server(port):
     server = StreamServer(('0.0.0.0', port), handle_peer)
