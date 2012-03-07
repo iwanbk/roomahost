@@ -43,7 +43,9 @@ class ClientMgr(gevent.Greenlet):
             return None
     
     def proc_msg(self, msg):
+        '''Memproses message dari client & peer.'''
         if msg['mt'] == self.MT_CLIENT_ADD_REQ:
+            '''Add Client Msg.'''
             user = msg['user']
             in_mq = msg['in_mq']
             print "CM.proc_msg.client_add user=", user
@@ -51,6 +53,7 @@ class ClientMgr(gevent.Greenlet):
             self._add_client(user, in_mq)
             
         elif msg['mt'] == self.MT_CLIENT_DEL_REQ:
+            '''Del Client message.'''
             user = msg['user']
             print "CM.proc_msg.client_del user=", user
             self._del_client(user)
