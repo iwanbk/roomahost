@@ -21,7 +21,7 @@ def report_usage(username, trf_req, trf_rsp):
     '''Report data transfer usage.'''
     stat_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
     res = stat_server.usage_add(username, trf_req, trf_rsp)
-    print "report usage. res = ", res
+    return res
 
 class Peer:
     """
