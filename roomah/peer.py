@@ -88,7 +88,7 @@ class Peer:
 
 def user_not_found_str(user):
     html = "HTTP/1.1\n\
-Server: nginx/1.1.11\n\
+Server: roomahost/0.1\n\
 Content-Type: text/html\n\
 Content-Length: 173\n\
 Connection: close\n\
