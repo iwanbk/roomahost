@@ -248,19 +248,23 @@ def client_auth_hashed(sock):
     if auth_req.cek_valid() == False:
         return None, AUTH_RES_PKT_ERR
     
+    auth_rsp = packet.AuthRsp()
+    auth_res = AUTH_RES_OK
+    
     user, password = auth_req.get_userpassword()
     if client_auth_rpc_hashed(user, password) != True:
         print "auth rpc failed"
-        return user, AUTH_RES_UNKNOWN_ERR
-    
-    auth_rsp = packet.AuthRsp()
-    auth_rsp.build(packet.AUTH_RSP_OK)
+        auth_rsp.build(packet.AUTH_RSP_FAILED)
+        auth_res = AUTH_RES_UNKNOWN_ERR
+    else:
+        auth_rsp.build(packet.AUTH_RSP_OK)
+        
     written, err = mysock.send_all(sock, auth_rsp.payload)
     if err != None or written < len(auth_rsp.payload):
         print "send auth reply failed"
         return user, AUTH_RES_UNKNOWN_ERR
     
-    return user, AUTH_RES_OK
+    return user, auth_res
     
 def unregister_client(CM, client):
     msg = {}
