@@ -102,8 +102,8 @@ Connection: close\n\
 def _get_client_own_domain(host):
     '''Get client name yang memiliki own-domain.'''
     import jsonrpclib
-    server = jsonrpclib.Server('http://localhost:4141')
-    res = server.domain_client(host)
+    server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
+    res = server.rh_domain_client(host)
     return res
 
 def get_client_name(req, base_domain = BASE_DOMAIN):
