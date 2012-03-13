@@ -1,0 +1,6 @@
+Roomahost : Publish Your Localhost
+
+visit : http://cp.rh.labhijau.net
+
+Usage:
+python server.py domain_to_serve.com
