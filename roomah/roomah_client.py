@@ -320,12 +320,13 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         for h_conn in host_conns_dict.itervalues():
             if h_conn.sock != None and h_conn.ended == False:
                 rlist.append(h_conn.sock)
-                
-        h_read, _, _ = select.select(rlist, [], [], 0.1)
         
-        if len(h_read) > 0:
-            for s in h_read:
-                accept_host_rsp(s)
+        if len(rlist) > 0:      
+            h_read, _, _ = select.select(rlist, [], [], 0.1)
+        
+            if len(h_read) > 0:
+                for s in h_read:
+                    accept_host_rsp(s)
         
         #cek ping rsp
         if client.cek_ping_rsp() == False:
