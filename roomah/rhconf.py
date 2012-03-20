@@ -1,1 +1,0 @@
-AUTH_SERVER_URL = "http://localhost:6565/paijon/"

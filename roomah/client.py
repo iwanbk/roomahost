@@ -8,7 +8,6 @@ import jsonrpclib
 from peer import Peer
 import packet
 import mysock
-import auth_rpcd
 import rhconf
 from client_mgr import ClientMgr
 
