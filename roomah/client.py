@@ -4,7 +4,6 @@ import select
 import gevent
 from gevent.server import StreamServer
 import jsonrpclib
-import puka
 
 from peer import Peer
 import packet
@@ -220,16 +219,6 @@ class Client:
         msg['pkt'] = rsp
         
         peer_mq.put(msg)
-
-def rabbit_conn():
-    client = puka.Client("amqp://localhost/")
-    promise = client.connect()
-    client.wait(promise)
-
-    promise = client.queue_declare(queue='test')
-    client.wait(promise)
-
-
 
 def client_auth_reply(sock):
     pass
