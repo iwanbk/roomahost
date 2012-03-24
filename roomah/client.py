@@ -21,8 +21,8 @@ BUF_LEN = 1024
 CM = None
 
 class ReqPkt:
-    def __init__(self, peer, payload):
-        self.peer = peer
+    def __init__(self, ses_id, payload):
+        self.ses_id = ses_id
         self.payload = payload
         
 class Client:
@@ -143,7 +143,7 @@ class Client:
         req = self.req_pkt.pop(0)
         
         req_pkt = packet.DataReq()
-        req_pkt.build(req.payload, req.peer.ses_id)
+        req_pkt.build(req.payload, req.ses_id)
         
         written, err = mysock.send_all(self.sock, req_pkt.payload)
         
