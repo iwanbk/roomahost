@@ -5,7 +5,7 @@ import gevent
 from gevent.server import StreamServer
 import jsonrpclib
 
-from peer import Peer
+from peerd import Peer
 import packet
 import mysock
 import rhconf
