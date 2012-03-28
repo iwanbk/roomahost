@@ -9,10 +9,9 @@ from gevent.server import StreamServer
 import jsonrpclib
 
 import mysock
-import clientd
 import http_utils
 import rhconf
-from client_mgr import ClientMgr
+import rhmsg
 
 BASE_DOMAIN = ""
 CM = None
@@ -27,7 +26,6 @@ def report_usage(username, trf_req, trf_rsp):
 class Peer:
     """Class that represents a Peer."""
     RSP_FORWARD_NUM = 5
-    MT_ADD_RSP_PKT = 1
     
     def __init__(self, sock, addr, client_mq = None):
         self.sock = sock
@@ -56,7 +54,7 @@ class Peer:
     def _unreg(self):
         '''unreg the peer from client.'''
         msg = {}
-        msg['mt'] = clientd.Client.MT_PEER_DEL_REQ
+        msg['mt'] = rhmsg.CL_DELPEER_REQ
         msg['ses_id'] = self.ses_id
         self.client_mq.put(msg)
         
@@ -146,7 +144,7 @@ def get_client_mq(subdom):
     '''
     temp_q = gevent.queue.Queue(1)
     msg = {}
-    msg['mt'] = ClientMgr.MT_CLIENT_GET_REQ
+    msg['mt'] = rhmsg.CM_GETCLIENT_REQ
     msg['user_str'] = subdom
     msg['q'] = temp_q
     
@@ -160,7 +158,7 @@ def register_peer(peer):
     '''Register peer to client.'''
     temp_q = gevent.queue.Queue(1)
     msg = {}
-    msg['mt'] = clientd.Client.MT_PEER_ADD_REQ
+    msg['mt'] = rhmsg.CL_ADDPEER_REQ
     msg['in_mq'] = peer.in_mq
     msg['q'] = temp_q
     peer.client_mq.put(msg)
@@ -171,9 +169,9 @@ def register_peer(peer):
     
 def forward_reqpkt_to_client(client_mq, ses_id, ba_req):
     '''Forward request packet to client.'''
-    req_pkt = clientd.ReqPkt(ses_id, ba_req)
+    req_pkt = rhmsg.HttpReq(ses_id, ba_req)
     msg = {}
-    msg['mt'] = clientd.Client.MT_REQPKT_ADD_REQ
+    msg['mt'] = rhmsg.CL_ADD_REQPKT_REQ
     msg['req_pkt'] = req_pkt
     client_mq.put(msg)
 

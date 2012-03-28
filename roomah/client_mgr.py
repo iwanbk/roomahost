@@ -1,20 +1,13 @@
 """
-Client Manager
+Roomahost's Client Manager
+Copyritght(2012) Iwan Budi Kusnanto
 """
 import gevent.queue
 
+import rhmsg
+
 class ClientMgr(gevent.Greenlet):
-    '''
-    Client Manager hanya menyimpan client_mq
-    '''
-    #message type
-    MT_CLIENT_ADD_REQ = 1
-    MT_CLIENT_ADD_RSP = 2
-    MT_CLIENT_DEL_REQ = 3
-    MT_CLIENT_DEL_RSP = 4
-    MT_CLIENT_GET_REQ = 5
-    MT_CLIENT_GET_RSP = 6
-    
+    '''Client Manager.'''
     PUT_TIMEOUT_DEFAULT = 5
         
     def __init__(self):
@@ -44,7 +37,7 @@ class ClientMgr(gevent.Greenlet):
     
     def proc_msg(self, msg):
         '''Memproses message dari client & peer.'''
-        if msg['mt'] == self.MT_CLIENT_ADD_REQ:
+        if msg['mt'] == rhmsg.CM_ADDCLIENT_REQ:
             '''Add Client Msg.'''
             user = msg['user']
             in_mq = msg['in_mq']
@@ -52,18 +45,18 @@ class ClientMgr(gevent.Greenlet):
             
             self._add_client(user, in_mq)
             
-        elif msg['mt'] == self.MT_CLIENT_DEL_REQ:
+        elif msg['mt'] == rhmsg.CM_DELCLIENT_REQ:
             '''Del Client message.'''
             user = msg['user']
             print "CM.proc_msg.client_del user=", user
             self._del_client(user)
         
-        elif msg['mt'] == self.MT_CLIENT_GET_REQ:
+        elif msg['mt'] == rhmsg.CM_GETCLIENT_REQ:
             user_str = msg['user_str']
             q = msg['q']
             
             rsp = {}
-            rsp['mt'] = self.MT_CLIENT_GET_RSP
+            rsp['mt'] = rhmsg.CM_GETCLIENT_RSP
             rsp['client_mq'] = self._get_client_mq(user_str)
             
             try:

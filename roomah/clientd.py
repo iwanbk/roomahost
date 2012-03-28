@@ -8,11 +8,10 @@ import gevent
 from gevent.server import StreamServer
 import jsonrpclib
 
-from peerd import Peer
 import packet
 import mysock
 import rhconf
-from client_mgr import ClientMgr
+import rhmsg
 
 AUTH_RES_OK = 1
 AUTH_RES_UNKNOWN_ERR = 0
@@ -21,20 +20,8 @@ AUTH_RES_PKT_ERR = -1
 BUF_LEN = 1024
 CM = None
 
-class ReqPkt:
-    def __init__(self, ses_id, payload):
-        self.ses_id = ses_id
-        self.payload = payload
-        
 class Client:
     """Represent a client."""
-    MT_PEER_ADD_REQ = 1
-    MT_PEER_ADD_RSP = 2
-    MT_PEER_DEL_REQ = 3
-    MT_PEER_DEL_RSP = 4
-    MT_REQPKT_ADD_REQ = 5
-    MT_REQPKT_ADD_RSP = 6
-
     def __init__(self, user, sock, addr):
         self.ses_id = 1
         self.user = user
@@ -81,24 +68,24 @@ class Client:
         except gevent.queue.Empty:
             return 0
         
-        if msg['mt'] == self.MT_PEER_ADD_REQ:
+        if msg['mt'] == rhmsg.CL_ADDPEER_REQ:
             q_rep = msg['q']
             ses_id = self._add_peer(msg['in_mq'])
             
             rsp = {}
-            rsp['mt'] = self.MT_PEER_ADD_RSP
+            rsp['mt'] = rhmsg.CL_ADDPEER_RSP
             rsp['ses_id'] = ses_id
             try:
                 q_rep.put(rsp)
             except gevent.queue.Full:
                 pass
             
-        elif msg['mt'] == self.MT_PEER_DEL_REQ:
+        elif msg['mt'] == rhmsg.CL_DELPEER_REQ:
             #print "[Client]del peer with ses_id=", msg['ses_id']
             ses_id = msg['ses_id']
             self._del_peer(ses_id)
             
-        elif msg['mt'] == self.MT_REQPKT_ADD_REQ:
+        elif msg['mt'] == rhmsg.CL_ADD_REQPKT_REQ:
             self._add_req_pkt(msg['req_pkt'])
         else:
             print "Client.process_msg.unknown_message"
@@ -196,7 +183,7 @@ class Client:
         #get ses_id
         ses_id = rsp.get_sesid()
         
-        if not rsp.cek_valid() == False:
+        if rsp.cek_valid() == False:
             print "FATAL : bukan DATA RSP"
             packet.print_header(rsp.payload)
             return False
@@ -216,7 +203,7 @@ class Client:
         
         #send RSP-PKT to peer mq
         msg = {}
-        msg['mt'] = Peer.MT_ADD_RSP_PKT
+        msg['mt'] = rhmsg.PD_ADD_RSP_PKT
         msg['pkt'] = rsp
         
         peer_mq.put(msg)
@@ -259,7 +246,7 @@ def client_auth(sock):
 def unregister_client(client):
     """Unregister client from Client Manager."""
     msg = {}
-    msg['mt'] = CM.MT_CLIENT_DEL_REQ
+    msg['mt'] = rhmsg.CM_DELCLIENT_REQ
     msg['user'] = client.user
     
     CM.in_mq.put(msg)
@@ -267,7 +254,7 @@ def unregister_client(client):
 def register_client(user, in_mq):
     """Register client to Client Manager."""
     msg = {}
-    msg['mt'] = ClientMgr.MT_CLIENT_ADD_REQ
+    msg['mt'] = rhmsg.CM_ADDCLIENT_REQ
     msg['user'] = user
     msg['in_mq'] = in_mq
     
