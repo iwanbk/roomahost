@@ -8,7 +8,7 @@ import gevent.pool
 from gevent import monkey; monkey.patch_all()
 
 import client_mgr
-import client
+import clientd
 import peerd
 
 if __name__ == '__main__':
@@ -21,9 +21,9 @@ if __name__ == '__main__':
     peerd.CM = CM
     peerd.BASE_DOMAIN = BASE_DOMAIN
     
-    client.CM = CM
+    clientd.CM = CM
     
-    cs = group.spawn(client.client_server, 3939)
+    cs = group.spawn(clientd.client_server, 3939)
     ps = group.spawn(peerd.peer_server, 4000)
     #gevent.joinall([cs, ps])
     group.join()

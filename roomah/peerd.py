@@ -9,7 +9,7 @@ from gevent.server import StreamServer
 import jsonrpclib
 
 import mysock
-import client
+import clientd
 import http_utils
 import rhconf
 from client_mgr import ClientMgr
@@ -56,7 +56,7 @@ class Peer:
     def _unreg(self):
         '''unreg the peer from client.'''
         msg = {}
-        msg['mt'] = client.Client.MT_PEER_DEL_REQ
+        msg['mt'] = clientd.Client.MT_PEER_DEL_REQ
         msg['ses_id'] = self.ses_id
         self.client_mq.put(msg)
         
@@ -160,7 +160,7 @@ def register_peer(peer):
     '''Register peer to client.'''
     temp_q = gevent.queue.Queue(1)
     msg = {}
-    msg['mt'] = client.Client.MT_PEER_ADD_REQ
+    msg['mt'] = clientd.Client.MT_PEER_ADD_REQ
     msg['in_mq'] = peer.in_mq
     msg['q'] = temp_q
     peer.client_mq.put(msg)
@@ -171,9 +171,9 @@ def register_peer(peer):
     
 def forward_reqpkt_to_client(client_mq, ses_id, ba_req):
     '''Forward request packet to client.'''
-    req_pkt = client.ReqPkt(ses_id, ba_req)
+    req_pkt = clientd.ReqPkt(ses_id, ba_req)
     msg = {}
-    msg['mt'] = client.Client.MT_REQPKT_ADD_REQ
+    msg['mt'] = clientd.Client.MT_REQPKT_ADD_REQ
     msg['req_pkt'] = req_pkt
     client_mq.put(msg)
 

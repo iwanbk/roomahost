@@ -1,4 +1,7 @@
-import sys
+"""
+Client Daemon
+Copyright : Iwan Budi Kusnanto
+"""
 import select
 
 import gevent
@@ -15,8 +18,6 @@ AUTH_RES_OK = 1
 AUTH_RES_UNKNOWN_ERR = 0
 AUTH_RES_PKT_ERR = -1
 
-auth_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
-
 BUF_LEN = 1024
 CM = None
 
@@ -26,6 +27,7 @@ class ReqPkt:
         self.payload = payload
         
 class Client:
+    """Represent a client."""
     MT_PEER_ADD_REQ = 1
     MT_PEER_ADD_RSP = 2
     MT_PEER_DEL_REQ = 3
@@ -33,9 +35,10 @@ class Client:
     MT_REQPKT_ADD_REQ = 5
     MT_REQPKT_ADD_RSP = 6
 
-    def __init__(self, user, sock):
+    def __init__(self, user, sock, addr):
         self.ses_id = 1
         self.user = user
+        self.addr = addr
         
         #socket for this user
         self.sock = sock
@@ -59,6 +62,7 @@ class Client:
         self.dead = False
     
     def _add_peer(self, in_mq):
+        '''Add a peer to this client.'''
         ses_id = self._gen_ses_id()
         if ses_id == None:
             return None
@@ -67,37 +71,35 @@ class Client:
         return ses_id
     
     def _del_peer(self, ses_id):
+        '''Del peer from this client.'''
         del self.peers_mq[ses_id]
     
     def _do_process_msg(self):
+        '''process message.'''
         try:
             msg = self.in_mq.get_nowait()
         except gevent.queue.Empty:
             return 0
         
         if msg['mt'] == self.MT_PEER_ADD_REQ:
-            '''Add Peer.'''
-            q = msg['q']
-            in_mq = msg['in_mq']
-            ses_id = self._add_peer(in_mq)
+            q_rep = msg['q']
+            ses_id = self._add_peer(msg['in_mq'])
             
             rsp = {}
             rsp['mt'] = self.MT_PEER_ADD_RSP
             rsp['ses_id'] = ses_id
             try:
-                q.put(rsp)
+                q_rep.put(rsp)
             except gevent.queue.Full:
                 pass
             
         elif msg['mt'] == self.MT_PEER_DEL_REQ:
-            '''Del Peer.'''
             #print "[Client]del peer with ses_id=", msg['ses_id']
             ses_id = msg['ses_id']
             self._del_peer(ses_id)
             
         elif msg['mt'] == self.MT_REQPKT_ADD_REQ:
-            req_pkt = msg['req_pkt']
-            self._add_req_pkt(req_pkt)
+            self._add_req_pkt(msg['req_pkt'])
         else:
             print "Client.process_msg.unknown_message"
         
@@ -135,7 +137,7 @@ class Client:
         '''add req pkt from to client's req_pkt list'''
         self.req_pkt.append(req_pkt)
     
-    def req_pkt_fwd(self, n):
+    def req_pkt_fwd(self):
         '''Forward request packet to client.'''
         if len(self.req_pkt) == 0:
             return
@@ -181,33 +183,33 @@ class Client:
         
         self.wait_ping_rsp = False
         
-    def procsess_rsp_pkt(self, ba, ba_len):
-        '''Forwad RSP Pkt to peer.'''
+    def process_rsp_pkt(self, ba_rsp, rsp_len):
+        '''Forwad response packet to peer.'''
         #len checking
-        if ba_len < packet.MIN_HEADER_LEN:
+        if rsp_len < packet.MIN_HEADER_LEN:
             print "FATAL:packet too small. discard"
-            sys.exit(-1)
+            return
         
         #build rsp_packet
-        rsp = packet.DataRsp(ba)
+        rsp = packet.DataRsp(ba_rsp)
         
         #get ses_id
         ses_id = rsp.get_sesid()
         
-        if rsp.cek_valid() == False:
+        if not rsp.cek_valid() == False:
             print "FATAL : bukan DATA RSP"
             packet.print_header(rsp.payload)
             return False
         
         #get peer mq
         if ses_id not in self.peers_mq:
-            '''ses_id sudah tidak ada.
+            """ses_id not found.
             - discard packet
             - kirim notifikasi ke client bahwa ses_id ini sudah dead
-            '''
-            peerDeadPkt = packet.CtrlPkt()
-            peerDeadPkt.build_peer_dead(ses_id)
-            self.ctrl_pkt.append(peerDeadPkt)
+            """
+            peer_dead_pkt = packet.CtrlPkt()
+            peer_dead_pkt.build_peer_dead(ses_id)
+            self.ctrl_pkt.append(peer_dead_pkt)
             return
         
         peer_mq = self.peers_mq[ses_id]
@@ -219,28 +221,28 @@ class Client:
         
         peer_mq.put(msg)
 
-def client_auth_reply(sock):
-    pass
-
-def client_auth_rpc_hashed(username, password):
+def client_auth_rpc(username, password):
+    """Do client auth RPC call."""
+    auth_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
     res = auth_server.rh_auth(str(username), str(password))
     return res
 
-def client_auth_hashed(sock):
-    ba, err = mysock.recv(sock, BUF_LEN)
+def client_auth(sock):
+    """Authenticate the client."""
+    ba_req, err = mysock.recv(sock, BUF_LEN)
     if err != None:
         print "can't recv auth req"
         return None, AUTH_RES_UNKNOWN_ERR
     
-    auth_req = packet.AuthReq(ba)
-    if auth_req.cek_valid() == False:
+    auth_req = packet.AuthReq(ba_req)
+    if not auth_req.cek_valid():
         return None, AUTH_RES_PKT_ERR
     
     auth_rsp = packet.AuthRsp()
     auth_res = AUTH_RES_OK
     
     user, password = auth_req.get_userpassword()
-    if client_auth_rpc_hashed(user, password) != True:
+    if client_auth_rpc(user, password) != True:
         print "auth rpc failed"
         auth_rsp.build(packet.AUTH_RSP_FAILED)
         auth_res = AUTH_RES_UNKNOWN_ERR
@@ -254,15 +256,16 @@ def client_auth_hashed(sock):
     
     return user, auth_res
     
-def unregister_client(CM, client):
+def unregister_client(client):
+    """Unregister client from Client Manager."""
     msg = {}
     msg['mt'] = CM.MT_CLIENT_DEL_REQ
     msg['user'] = client.user
     
     CM.in_mq.put(msg)
     
-def register_client(CM, user, in_mq):
-    #prepare the message
+def register_client(user, in_mq):
+    """Register client to Client Manager."""
     msg = {}
     msg['mt'] = ClientMgr.MT_CLIENT_ADD_REQ
     msg['user'] = user
@@ -275,20 +278,20 @@ def register_client(CM, user, in_mq):
     return True
     
 def handle_client(sock, addr):
-    print "sock = ", sock
-    print "addr = ", addr
-    
-    #user, auth_res = client_auth(sock)
-    user, auth_res = client_auth_hashed(sock)
+    """Client handler."""
+    #print "sock = ", sock
+    #print "addr = ", addr
+    #client authentication
+    user, auth_res = client_auth(sock)
     if auth_res != AUTH_RES_OK:
         print "AUTH failed"
         return
     
-    cli = Client(user, sock)
-    if register_client(CM, cli.user, cli.in_mq) == False:
+    cli = Client(user, sock, addr)
+    #register to client manager
+    if register_client(cli.user, cli.in_mq) == False:
         print "REGISTER failed"
         return
-    
     
     while True:
         #process incoming messages
@@ -299,18 +302,16 @@ def handle_client(sock, addr):
         if len(cli.req_pkt) > 0 or cli.wait_ping_rsp == True or len(cli.ctrl_pkt) > 0:
             wlist.append(sock)
             
-            
         rsocks, wsocks, _ = select.select([sock], wlist , [], 0.1)
         if len(rsocks) > 0:       
-            ba, err = packet.get_all_data_pkt(sock)
-            if ba is None or err is not None:
+            ba_pkt, err = packet.get_all_data_pkt(sock)
+            if ba_pkt is None or err is not None:
                 print "read client sock err.exiting.."
                 break
             
-            if ba[0] == packet.TYPE_DATA_RSP:  
-                cli.procsess_rsp_pkt(ba, len(ba))
-            elif ba[0] == packet.TYPE_PING_REQ:
-                #print "[PING-REQ] from ", client.user
+            if ba_pkt[0] == packet.TYPE_DATA_RSP:  
+                cli.process_rsp_pkt(ba_pkt, len(ba_pkt))
+            elif ba_pkt[0] == packet.TYPE_PING_REQ:
                 cli.wait_ping_rsp = True
         
         
@@ -318,7 +319,7 @@ def handle_client(sock, addr):
             if cli.send_ctrl_pkt() == False:
                 break
             #forward http request packet to client
-            if cli.req_pkt_fwd(1) == False:
+            if cli.req_pkt_fwd() == False:
                 break
             #send PING-RSP to client
             if cli.ping_rsp_send() == False:
@@ -326,10 +327,10 @@ def handle_client(sock, addr):
 
         gevent.sleep(0)
     
-    #CM.del_client(client)
-    unregister_client(CM, cli)
+    unregister_client(cli)
 
 def client_server(port):
+    """Client daemon initialization function."""
     server = StreamServer(('0.0.0.0', port), handle_client)
     print 'Starting client server on port ', port
     server.serve_forever()
