@@ -258,18 +258,14 @@ def get_all_data_pkt(sock):
     #read the header
     ba, err = mysock.recv_safe(sock, MIN_HEADER_LEN)
     
-    if ba == None:
+    if ba == None or err != None:
         '''something error happened.'''
         print "null BA"
         return None, None
-    
-    if err != None:
-        print "FATAL ERROR.435."
-        sys.exit(-1)
-    if len(ba) != 5:
-        print "len_ba = ", len(ba)
-        print "FATAL ERROR.55"
-        sys.exit(-1)
+
+    if len(ba) != MIN_HEADER_LEN:
+        print "FATAL ERROR.len(ba) = ", len(ba)
+        return None, None
     
     pkt_len = get_len_from_header(ba)
     #print "need to recv ", pkt_len, " bytes"
