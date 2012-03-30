@@ -1,5 +1,5 @@
 """
-Client untuk roomahost
+Roomahost client
 """
 import sys
 import socket
@@ -9,12 +9,12 @@ import datetime
 
 import packet
 import mysock
+import http_utils
 
 SERV_BUF_LEN = 1024
 HOST_BUF_LEN = SERV_BUF_LEN - packet.MIN_HEADER_LEN
 
-host_conns_dict = {}
-rsp_list = []
+HOST_CONNS_DICT = {}
 
 class HostConn:
     '''Connection to host.'''
@@ -23,6 +23,7 @@ class HostConn:
         self.ses_id = ses_id
         self.ended = False
         self.rsp_list = []
+        self.first_rsp_recvd = False
     
     def reset(self):
         '''reset semua value (set None).'''
@@ -42,13 +43,14 @@ class HostRsp:
         
         
 def clean_host_conn():
-    '''Clean HostConn untuk client ini.
+    '''Clean HostConn.
     
-    HostConn yang didelete adalah yang telah di mark ended
-    dan rsp_list nya sudah kosong
+    HostConn that will be deleted:
+        hostconn that marked as ended
+        host conn with empty rsp_list
     '''
     to_del = []
-    for h_conn in host_conns_dict.itervalues():
+    for h_conn in HOST_CONNS_DICT.itervalues():
         if h_conn.ended == True and len(h_conn.rsp_list) == 0:
             to_del.append(h_conn)
     
@@ -56,11 +58,11 @@ def clean_host_conn():
         del_host_conn(h_conn.ses_id, h_conn)
 
 def get_host_conn_by_sock(sock):
-    '''Get HostConn object dari sebuah socket ke host.'''
+    '''Get HostConn object from a socket to host.'''
     if sock == None:
         return None
     
-    for h_conn in host_conns_dict.itervalues():
+    for h_conn in HOST_CONNS_DICT.itervalues():
         if h_conn.sock == sock:
             return h_conn
     
@@ -71,18 +73,45 @@ def del_host_conn(ses_id, h_conn = None):
     conn = h_conn
     if conn == None:
         try:
-            conn = host_conns_dict[ses_id]
+            conn = HOST_CONNS_DICT[ses_id]
         except KeyError:
             print "key_error"
-            #sys.exit(-1)
-            return
-    #print "del host conn"    
+            return 
     conn.reset()
-    del host_conns_dict[ses_id]
+    del HOST_CONNS_DICT[ses_id]
 
-def forward_incoming_req_pkt(ba, ba_len, host_host, host_port):
+def rewrite_host_header(line, req, host_host, host_port):
+    '''Rewrite host header.'''
+    header = http_utils.get_http_req_header(req)
+    
+    if header == None:
+        return line
+    try:
+        host = header['Host']
+    except AttributeError:
+        return line
+    
+    rew_host = line.replace(host, host_host + ":" + str(host_port), 1)
+    return rew_host
+    
+def rewrite_req(req, host_host, host_port):
+    '''Rewrite http request header.'''
+    splt = req.split("\r\n")
+    mod_req = ""
+    for s in splt:
+        if s.find("Host:") == 0:
+            rew_host = rewrite_host_header(s, req, host_host, host_port)
+            mod_req += rew_host
+        else:
+            mod_req += s
+        mod_req += "\r\n"
+    
+    #print mod_req
+    return mod_req
+
+def forward_incoming_req_pkt(ba_req, ba_len, host_host, host_port):
     '''Forward incoming req packet to host.'''
-    req = packet.DataReq(ba)
+    req = packet.DataReq(ba_req)
     if req.cek_valid() == False:
         print "bukan DATA REQ"
         print "FATAL ERROR"
@@ -91,27 +120,52 @@ def forward_incoming_req_pkt(ba, ba_len, host_host, host_port):
     
     ses_id = req.get_sesid()
     req_data = req.get_data()
-    #print req_data
+    #req_data = rewrite_req(req_data, host_host, host_port)
     
     h_conn = HostConn(ses_id)
-    host_conns_dict[ses_id] = h_conn
+    HOST_CONNS_DICT[ses_id] = h_conn
     
     #forward ke host
     h_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     h_conn.sock = h_sock
     
-    ret, err = mysock.connect(h_sock, (host_host, host_port))
+    _, err = mysock.connect(h_sock, (host_host, host_port))
     written, err = mysock.send_all(h_sock, req_data)
     if err != None:
         print "error forward"
-        del host_conns_dict[ses_id]
+        del HOST_CONNS_DICT[ses_id]
         sys.exit(-1)
     
     if written != len(req_data):
         print "PARTIAL FORWARD to host"
         print "FATAL UNHANDLED COND"
         sys.exit(-1)
+
+def rewrite_loc_header(line, rsp, host_host, host_port, rh_host, rh_port):
+    """rewrite Location header."""
+    rew_loc = line.replace(host_host, rh_host, 1)
+    print "rew_loc = ", rew_loc
+    return rew_loc
+
+def rewrite_first_rsp(rsp, host_host, host_port, rh_host, rh_port):
+    """Rewrite first response (response header)"""
+    print "==============first response=============="
+    splt = rsp.split("\r\n")
+    mod_rsp = ""
+    for i in range(0, len(splt)):
+        print "->:", splt[i]
+        if splt[i].find("Location:") == 0:
+            rew_loc = rewrite_loc_header(splt[i], rsp, host_host, host_port, rh_host, rh_port)
+            mod_rsp += rew_loc
+        else:
+            mod_rsp += splt[i]
+        if i < len(splt) -1:
+            mod_rsp += "\r\n"
         
+    print "==============mod rsp"
+    print mod_rsp
+    return mod_rsp
+    
 def accept_host_rsp(h_sock):
     '''accept host response.
     enqueue it to rsp_list.
@@ -119,28 +173,28 @@ def accept_host_rsp(h_sock):
     #get HostConn object
     h_conn = get_host_conn_by_sock(h_sock)
     if h_conn == None:
-        print "can't get h_conn by sock"
-        print "FATAL UNHANDLED CONDITION"
+        print "FATAL UNHANDLED ERROR:can't get h_conn"
         sys.exit(-1)
         
     #receive the response
-    ba, err = mysock.recv(h_sock, HOST_BUF_LEN)
+    ba_rsp, err = mysock.recv(h_sock, HOST_BUF_LEN)
     if err != None:
         print "FATAL ERROR. error recv resp from host"
         sys.exit(-1)
     
-    if len(ba) == 0:
+    if len(ba_rsp) == 0:
         #print "closing the socket.."
         h_sock.close()
         h_conn.ended = True
     
-    #experimental
-    h_conn.rsp_list.append(ba)
-
+    if h_conn.first_rsp_recvd == False:
+        #ba = rewrite_first_rsp(ba, "192.168.56.10", 80, "paijo.master.lan", 80)
+        h_conn.first_rsp_recvd = True
+        
+    h_conn.rsp_list.append(ba_rsp)
         
 def _send_rsp_pkt_to_server(rsp_pkt, server_sock):
     '''Send response packet to server.'''
-    #print "#"
     written, err = mysock.send_all(server_sock, rsp_pkt.payload)
     if err != None:
         print "error sending packet to server"
@@ -151,14 +205,14 @@ def _send_rsp_pkt_to_server(rsp_pkt, server_sock):
         sys.exit(-1)
 
 def forward_host_rsp(server_sock):
-    '''Forward Host response ke server.'''
-    for h_conn in host_conns_dict.itervalues():
+    '''Forward Host response to server.'''
+    for h_conn in HOST_CONNS_DICT.itervalues():
         if len(h_conn.rsp_list) > 0:
-            ba = h_conn.rsp_list.pop(0)
+            ba_rsp = h_conn.rsp_list.pop(0)
             rsp_pkt = packet.DataRsp()
-            rsp_pkt.build(ba, h_conn.ses_id)
+            rsp_pkt.build(ba_rsp, h_conn.ses_id)
     
-            if len(ba) == 0:
+            if len(ba_rsp) == 0:
                 rsp_pkt.set_eof()
             
             _send_rsp_pkt_to_server(rsp_pkt, server_sock)
@@ -166,6 +220,12 @@ def forward_host_rsp(server_sock):
             if rsp_pkt.is_eof():
                 h_conn.ended = True
 
+def any_host_response():
+    '''check if there is any host response.'''
+    for h_conn in HOST_CONNS_DICT.itervalues():
+        if len(h_conn.rsp_list) > 0:
+            return True
+    return False
         
 class Client:
     '''Client class.'''
@@ -179,16 +239,16 @@ class Client:
         self.wait_ping_rsp = False
     
     def cek_ping_req(self):
-        '''Cek waktu terakhir melakukan ping
-        dan enqueue ping packet kalo sudah waktunya melakukan ping lagi.'''
+        '''Check last ping
+        enqueue ping packet if it exceeded ping period.'''
         if time.time() - self.last_ping >= Client.PING_REQ_PERIOD:
             preq = packet.PingReq()
             self.to_server_pkt.append(preq)
     
     def cek_ping_rsp(self):
-        '''Cek ping response.
+        '''Check ping response.
         
-        Return false jika ping rsp belum datang dan melebihi timeout.
+        Return false if it exceeding PING_RSP_WAIT_TIME timeout.
         '''
         if not self.wait_ping_rsp:
             return True
@@ -198,18 +258,19 @@ class Client:
         
         return True
     
-    def handle_ping_rsp(self, ba):
+    def handle_ping_rsp(self, ba_rsp):
         '''Handle PING-RSP.'''
         self.wait_ping_rsp = False
         self.last_ping = time.time()
     
-    def handle_ctrl_pkt(self, ba):
-        pkt = packet.CtrlPkt(ba)
+    def handle_ctrl_pkt(self, ba_pkt):
+        """Ctrl Packet Handling dispatcher."""
+        pkt = packet.CtrlPkt(ba_pkt)
         if pkt.cek_valid() == False:
             return False
         
-        type = pkt.get_type()
-        if type == pkt.T_PEER_DEAD:
+        pkt_type = pkt.get_type()
+        if pkt_type == pkt.T_PEER_DEAD:
             ses_id = pkt.peer_dead_ses_id()
             self.handle_peer_dead(ses_id)
         else:
@@ -217,11 +278,11 @@ class Client:
             sys.exit(-1)
         
     def handle_peer_dead(self, ses_id):
-        print "handle_peer_dead. 675999987"
+        """Deleting host conn with ses_id = peer's session id."""
         del_host_conn(ses_id)
         
     def send_to_server_pkt(self):
-        '''Send packet di queue ke server.'''
+        '''Send a packet in to_server queue'''
         if len(self.to_server_pkt) == 0:
             return True
         
@@ -238,28 +299,38 @@ class Client:
             print "[PING-REQ]", datetime.datetime.now()
         
         return True
+    
+    def any_pkt_to_server(self):
+        '''True if there is pkt to server.'''
+        return len(self.to_server_pkt) > 0
 
 def do_auth(user, password, server_sock):
+    """Doing roomahost authentication."""
     auth_req = packet.AuthReq()
     auth_req.build(user, password)
     
     written, err = mysock.send(server_sock, auth_req.payload)
+    
+    #sending packet failed
     if err != None or written < len(auth_req.payload):
         print "can't send auth req to server.err = ", err
         return False
     
-    ba, err = mysock.recv(server_sock, 1024)
+    #receiving reply failed
+    ba_rsp, err = mysock.recv(server_sock, 1024)
     if err != None:
         print "failed to get auth reply"
         return False
     
-    rsp = packet.AuthRsp(ba)
+    #bad username/password
+    rsp = packet.AuthRsp(ba_rsp)
     if rsp.get_val() != packet.AUTH_RSP_OK:
         print "AUTH_RSP_FAILED"
         return False
     return True
     
 def client_loop(server, port, user, passwd, host_host, host_port):
+    """Main client loop."""
     #connect to server
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     mysock.setkeepalives(server_sock)
@@ -274,7 +345,6 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         sys.exit(1)
         
     print "AUTH OK"
-    #server_sock.setblocking(0)
     
     client = Client(server_sock)
     
@@ -283,29 +353,36 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         #cek last_ping
         client.cek_ping_req()
         
-        #select untuk server sock
+        #server_sock select()
+        wsock = []
+        if client.any_pkt_to_server() or any_host_response():
+            wsock.append(server_sock)
+            
         to_read, to_write, _ = select.select([server_sock],
-            [server_sock], [], 0.1)
+            wsock, [], 1)
         
         if len(to_read) > 0:
             #read sock
-            ba, err = packet.get_all_data_pkt(server_sock)
-            if ba is None or err != None:
+            ba_pkt, err = packet.get_all_data_pkt(server_sock)
+            if ba_pkt is None or err != None:
                 print "Error : Connection to server"
                 break
             
-            if ba[0] == packet.TYPE_DATA_REQ:
-                forward_incoming_req_pkt(ba, len(ba), host_host, host_port)
-                
-            elif ba[0] == packet.TYPE_PING_RSP:
-                print "PING-RSP ", datetime.datetime.now()
-                client.handle_ping_rsp(ba)
+            #request packet
+            if ba_pkt[0] == packet.TYPE_DATA_REQ:
+                forward_incoming_req_pkt(ba_pkt, len(ba_pkt), host_host, host_port)
             
-            elif ba[0] == packet.TYPE_CTRL:
-                print "CTRL Packet. subtype = ", ba[1]
-                client.handle_ctrl_pkt(ba)
+            #ping rsp
+            elif ba_pkt[0] == packet.TYPE_PING_RSP:
+                print "PING-RSP ", datetime.datetime.now()
+                client.handle_ping_rsp(ba_pkt)
+            
+            #ctrl packet
+            elif ba_pkt[0] == packet.TYPE_CTRL:
+                print "CTRL Packet. subtype = ", ba_pkt[1]
+                client.handle_ctrl_pkt(ba_pkt)
             else:
-                print "Unknown packet.type = ", ba[0]
+                print "Unknown packet.type = ", ba_pkt[0]
                 sys.exit(-1)
         
         if len(to_write) > 0:
@@ -317,16 +394,16 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         
         #select() untuk host sock
         rlist = []
-        for h_conn in host_conns_dict.itervalues():
+        for h_conn in HOST_CONNS_DICT.itervalues():
             if h_conn.sock != None and h_conn.ended == False:
                 rlist.append(h_conn.sock)
         
         if len(rlist) > 0:      
-            h_read, _, _ = select.select(rlist, [], [], 0.1)
+            h_read, _, _ = select.select(rlist, [], [], 0.5)
         
             if len(h_read) > 0:
-                for s in h_read:
-                    accept_host_rsp(s)
+                for sock in h_read:
+                    accept_host_rsp(sock)
         
         #cek ping rsp
         if client.cek_ping_rsp() == False:
@@ -337,11 +414,11 @@ def client_loop(server, port, user, passwd, host_host, host_port):
     
         
 if __name__ == '__main__':
-    server = sys.argv[1]
-    port = 3939
-    user = sys.argv[2]
-    passwd = sys.argv[3]
-    host_host = sys.argv[4]
-    host_port = int(sys.argv[5])
+    SERVER = sys.argv[1]
+    PORT = 3939
+    USER = sys.argv[2]
+    PASSWD = sys.argv[3]
+    HOST_HOST = sys.argv[4]
+    HOST_PORT = int(sys.argv[5])
     
-    client_loop(server, port, user, passwd, host_host, host_port)
+    client_loop(SERVER, PORT, USER, PASSWD, HOST_HOST, HOST_PORT)
