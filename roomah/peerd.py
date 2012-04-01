@@ -3,6 +3,8 @@ Peer Daemon
 Copyright 2012 Iwan Budi Kusnanto
 """
 import select
+import logging
+import logging.handlers
 
 import gevent
 from gevent.server import StreamServer
@@ -16,6 +18,20 @@ import rhmsg
 BASE_DOMAIN = ""
 CM = None
 BUF_LEN = 1024
+
+LOG_FILENAME = rhconf.LOG_FILE_PEERD
+logging.basicConfig(level = rhconf.LOG_LEVEL_PEERD) 
+LOG = logging.getLogger("peerd")
+rotfile_handler = logging.handlers.RotatingFileHandler(
+    LOG_FILENAME,
+    maxBytes = rhconf.LOG_MAXBYTE_PEERD,
+    backupCount = 10
+)
+LOG.addHandler(rotfile_handler)
+
+if rhconf.LOG_STDERR_PEERD:
+    stderr_handler = logging.StreamHandler()
+    LOG.addHandler(stderr_handler)
 
 def report_usage(username, trf_req, trf_rsp):
     '''Report data transfer usage.'''
@@ -72,15 +88,11 @@ class Peer:
         
         written, err = mysock.send(self.sock, data)
         if err != None:
-            print "client.rsp_pkt_fwd err"
+            LOG.warning("rsp_pkt_fwd err")
             return -1
         
-        if written < 0:
-            print "FATAL ERROR.written < 0"
-            return -1
-            
         if written != len(data):
-            print "peer.forward_rsp_pkt partial "
+            LOG.warning("peer.forward_rsp_pkt partial %s:%s" % self.addr)
             self.enq_rsp(data[written])
         
         if rsp.is_eof() == True:
@@ -112,7 +124,7 @@ Connection: close\n\
 
 def handle_client_not_found(client_name, sock):
     '''User not found handler.'''
-    print "Send 'client not online' message to peer. Client = ", client_name
+    LOG.info("Send 'client not online' message to peer. Client = %s " % client_name)
     str_err = user_not_found_str(client_name)
     mysock.send_all(sock, str_err)
     
@@ -177,9 +189,7 @@ def forward_reqpkt_to_client(client_mq, ses_id, ba_req):
 
 def handle_peer(sock, addr):
     '''Peer connection handler.'''
-    #print "##### peer baru ############"
-    #print "sock = ", sock
-    #print "addr = ", addr
+    LOG.debug("new_peer.addr = %s %s" % addr)
     
     #get request
     ba_req, err = mysock.recv(sock, BUF_LEN)
@@ -190,7 +200,7 @@ def handle_peer(sock, addr):
     client_name = get_client_name(ba_req, BASE_DOMAIN)
     
     if client_name is None:
-        print "client name not found"
+        LOG.warning("client name not found.aaddr = %s:%s" % addr)
         sock.close()
         return
     
@@ -205,7 +215,7 @@ def handle_peer(sock, addr):
     peer.ses_id = register_peer(peer)
     
     if peer.ses_id == None:
-        print "can't add peer. MAX_CONN REACHED?"
+        LOG.error("can't add peer. MAX_CONN REACHED %s" % client_name)
         peer.close()
         return
     

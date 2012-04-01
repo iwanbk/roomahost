@@ -1,1 +1,18 @@
+import logging
+
 AUTH_SERVER_URL = "http://localhost:6565/"
+
+LOG_LEVEL_PEERD = logging.DEBUG
+LOG_LEVEL_CLIENTD = logging.DEBUG
+LOG_LEVEL_CM = logging.DEBUG
+
+LOG_FILE_PEERD = "logs/peerd.log"
+LOG_FILE_CLIENTD = "logs/clientd.log"
+LOG_FILE_CM = "logs/cm.log"
+
+LOG_MAXBYTE_PEERD = 10000000
+LOG_MAXBYTE_CLIENTD = 10000000
+LOG_MAXBYTE_CM = 10000000
+
+LOG_STDERR_PEERD = False
+LOG_STDERR_CLIENTD = False

@@ -3,6 +3,8 @@ Client Daemon
 Copyright : Iwan Budi Kusnanto
 """
 import select
+import logging
+import logging.handlers
 
 import gevent
 from gevent.server import StreamServer
@@ -19,6 +21,20 @@ AUTH_RES_PKT_ERR = -1
 
 BUF_LEN = 1024
 CM = None
+
+LOG_FILENAME = rhconf.LOG_FILE_CLIENTD
+logging.basicConfig(level = rhconf.LOG_LEVEL_CLIENTD)
+LOG = logging.getLogger("clientd")
+rotfile_handler = logging.handlers.RotatingFileHandler(
+    LOG_FILENAME,
+    maxBytes = rhconf.LOG_MAXBYTE_CLIENTD,
+    backupCount = 10,
+)
+LOG.addHandler(rotfile_handler)
+
+if rhconf.LOG_STDERR_CLIENTD:
+    stderr_handler = logging.StreamHandler()
+    LOG.addHandler(stderr_handler)
 
 class Client:
     """Represent a client."""
@@ -88,7 +104,7 @@ class Client:
         elif msg['mt'] == rhmsg.CL_ADD_REQPKT_REQ:
             self._add_req_pkt(msg['req_pkt'])
         else:
-            print "Client.process_msg.unknown_message"
+            LOG.error("Client.process_msg.unknown_message")
         
         return 1
     
@@ -137,7 +153,7 @@ class Client:
         written, err = mysock.send_all(self.sock, req_pkt.payload)
         
         if written != len(req_pkt.payload) or err != None:
-            print "failed to send req pkt to client"
+            LOG.error("failed to send req pkt to client:%s" % self.user)
             self.dead = True
             return False
     
@@ -146,11 +162,12 @@ class Client:
         if len(self.ctrl_pkt) == 0:
             return True
         
-        print "send ctrl pkt to client"
+        LOG.debug("send ctrl pkt to client:%s" % self.user)
+        
         pkt = self.ctrl_pkt.pop(0)
         written, err = mysock.send_all(self.sock, pkt.payload)
         if written != len(pkt.payload) or err != None:
-            print "failed to send ctrl_pkt to client"
+            LOG.error("failed to send ctrl_pkt to:%s.type = %d" % self.user, pkt.payload[1])
             self.dead = True
             return False
         return True
@@ -165,7 +182,7 @@ class Client:
         written, err = mysock.send_all(self.sock, p_rsp.payload)
         
         if err != None or (len(p_rsp.payload) != written):
-            print "error sending PING-RSP to ", self.user
+            LOG.error("error sending PING-RSP to %s" %  self.user)
             return False
         
         self.wait_ping_rsp = False
@@ -174,7 +191,7 @@ class Client:
         '''Forwad response packet to peer.'''
         #len checking
         if rsp_len < packet.MIN_HEADER_LEN:
-            print "FATAL:packet too small. discard"
+            LOG.error("FATAL:packet too small,discard.user = %s" % self.user)
             return
         
         #build rsp_packet
@@ -184,7 +201,7 @@ class Client:
         ses_id = rsp.get_sesid()
         
         if rsp.cek_valid() == False:
-            print "FATAL : bukan DATA RSP"
+            LOG.error("FATAL :Not DATA-RSP.user = %s" % self.user)
             packet.print_header(rsp.payload)
             return False
         
@@ -214,11 +231,11 @@ def client_auth_rpc(username, password):
     res = auth_server.rh_auth(str(username), str(password))
     return res
 
-def client_auth(sock):
+def client_auth(sock,addr):
     """Authenticate the client."""
     ba_req, err = mysock.recv(sock, BUF_LEN)
     if err != None:
-        print "can't recv auth req"
+        LOG.warning("can't recv auth req %s:%s"% addr)
         return None, AUTH_RES_UNKNOWN_ERR
     
     auth_req = packet.AuthReq(ba_req)
@@ -230,7 +247,7 @@ def client_auth(sock):
     
     user, password = auth_req.get_userpassword()
     if client_auth_rpc(user, password) != True:
-        print "auth rpc failed"
+        LOG.debug("auth rpc failed %s:%s" % addr)
         auth_rsp.build(packet.AUTH_RSP_FAILED)
         auth_res = AUTH_RES_UNKNOWN_ERR
     else:
@@ -238,7 +255,7 @@ def client_auth(sock):
         
     written, err = mysock.send_all(sock, auth_rsp.payload)
     if err != None or written < len(auth_rsp.payload):
-        print "send auth reply failed"
+        LOG.error("send auth reply failed.%s:%s" % addr)
         return user, AUTH_RES_UNKNOWN_ERR
     
     return user, auth_res
@@ -266,18 +283,17 @@ def register_client(user, in_mq):
     
 def handle_client(sock, addr):
     """Client handler."""
-    #print "sock = ", sock
-    #print "addr = ", addr
+    LOG.debug("new client %s:%s" % addr)
     #client authentication
-    user, auth_res = client_auth(sock)
+    user, auth_res = client_auth(sock, addr)
     if auth_res != AUTH_RES_OK:
-        print "AUTH failed"
+        LOG.debug("AUTH failed.addr = %s:%s" % addr)
         return
     
     cli = Client(user, sock, addr)
     #register to client manager
     if register_client(cli.user, cli.in_mq) == False:
-        print "REGISTER failed"
+        LOG.fatal("REGISTER failed.user = %s" % cli.user)
         return
     
     while True:
@@ -293,7 +309,7 @@ def handle_client(sock, addr):
         if len(rsocks) > 0:       
             ba_pkt, err = packet.get_all_data_pkt(sock)
             if ba_pkt is None or err is not None:
-                print "read client sock err.exiting.."
+                LOG.debug("read client sock err.exiting")
                 break
             
             if ba_pkt[0] == packet.TYPE_DATA_RSP:  

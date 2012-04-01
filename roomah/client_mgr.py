@@ -2,9 +2,24 @@
 Roomahost's Client Manager
 Copyritght(2012) Iwan Budi Kusnanto
 """
+import logging
+import logging.handlers
+
 import gevent.queue
 
 import rhmsg
+import rhconf
+
+LOG_FILENAME = rhconf.LOG_FILE_CM
+logging.basicConfig(level = rhconf.LOG_LEVEL_CM)
+LOG = logging.getLogger("cm")
+rotfile_handler = logging.handlers.RotatingFileHandler(
+    LOG_FILENAME,
+    maxBytes = rhconf.LOG_MAXBYTE_CM,
+    backupCount = 10
+)
+LOG.addHandler(rotfile_handler)
+
 
 class ClientMgr(gevent.Greenlet):
     '''Client Manager.'''
@@ -41,14 +56,14 @@ class ClientMgr(gevent.Greenlet):
             '''Add Client Msg.'''
             user = msg['user']
             in_mq = msg['in_mq']
-            print "CM.proc_msg.client_add user=", user
+            LOG.info("add user=%s"% user)
             
             self._add_client(user, in_mq)
             
         elif msg['mt'] == rhmsg.CM_DELCLIENT_REQ:
             '''Del Client message.'''
             user = msg['user']
-            print "CM.proc_msg.client_del user=", user
+            LOG.info("del user=%s" % user)
             self._del_client(user)
         
         elif msg['mt'] == rhmsg.CM_GETCLIENT_REQ:
@@ -65,4 +80,4 @@ class ClientMgr(gevent.Greenlet):
                 pass
             
         else:
-            print "CM.proc_msg.unknown message"
+            LOG.warning("CM.proc_msg.unknown message")
