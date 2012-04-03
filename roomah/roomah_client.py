@@ -6,15 +6,18 @@ import socket
 import select
 import time
 import datetime
+import logging
 
 import packet
 import mysock
-import http_utils
 
 SERV_BUF_LEN = 1024
 HOST_BUF_LEN = SERV_BUF_LEN - packet.MIN_HEADER_LEN
 
 HOST_CONNS_DICT = {}
+
+logging.basicConfig(level = logging.INFO)
+LOG = logging.getLogger("rhclient")
 
 class HostConn:
     '''Connection to host.'''
@@ -75,13 +78,14 @@ def del_host_conn(ses_id, h_conn = None):
         try:
             conn = HOST_CONNS_DICT[ses_id]
         except KeyError:
-            print "key_error"
+            LOG.debug("key_error")
             return 
     conn.reset()
     del HOST_CONNS_DICT[ses_id]
 
 def rewrite_host_header(line, req, host_host, host_port):
     '''Rewrite host header.'''
+    import http_utils
     header = http_utils.get_http_req_header(req)
     
     if header == None:
@@ -113,23 +117,24 @@ def forward_incoming_req_pkt(ba_req, ba_len, host_host, host_port):
     '''Forward incoming req packet to host.'''
     req = packet.DataReq(ba_req)
     if req.cek_valid() == False:
-        print "bukan DATA REQ"
-        print "FATAL ERROR"
-        #sys.exit(-1)
+        LOG.fatal("Bad DATA-REQ packet")
         return
     
     ses_id = req.get_sesid()
     req_data = req.get_data()
     #req_data = rewrite_req(req_data, host_host, host_port)
+    LOG.debug("ses_id=%d" % ses_id)
     
-    h_conn = HostConn(ses_id)
-    HOST_CONNS_DICT[ses_id] = h_conn
+    try:
+        h_conn = HOST_CONNS_DICT[ses_id]
+        LOG.debug("use old connection.ses_id = %d" % h_conn.ses_id)
+    except KeyError:
+        h_conn = HostConn(ses_id)
+        HOST_CONNS_DICT[ses_id] = h_conn
+        h_conn.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _, err = mysock.connect(h_conn.sock, (host_host, host_port))
     
-    #forward ke host
-    h_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    h_conn.sock = h_sock
-    
-    _, err = mysock.connect(h_sock, (host_host, host_port))
+    h_sock = h_conn.sock
     written, err = mysock.send_all(h_sock, req_data)
     if err != None:
         print "error forward"
@@ -183,7 +188,7 @@ def accept_host_rsp(h_sock):
         sys.exit(-1)
     
     if len(ba_rsp) == 0:
-        #print "closing the socket.."
+        LOG.debug("ses_id %d closed", h_conn.ses_id)
         h_sock.close()
         h_conn.ended = True
     
@@ -290,13 +295,13 @@ class Client:
         
         written, err = mysock.send_all(self.server_sock, pkt.payload)
         if (err != None) or (written != len(pkt.payload)):
-            print "err sending pkt to server"
+            LOG.error("can't send pkt to server")
             return False
         
         if pkt.payload[0] == packet.TYPE_PING_REQ:
             self.last_ping = time.time()
             self.wait_ping_rsp = True
-            print "[PING-REQ]", datetime.datetime.now()
+            #print "[PING-REQ]", datetime.datetime.now()
         
         return True
     
@@ -374,15 +379,16 @@ def client_loop(server, port, user, passwd, host_host, host_port):
             
             #ping rsp
             elif ba_pkt[0] == packet.TYPE_PING_RSP:
-                print "PING-RSP ", datetime.datetime.now()
+                #print "PING-RSP ", datetime.datetime.now()
                 client.handle_ping_rsp(ba_pkt)
             
             #ctrl packet
             elif ba_pkt[0] == packet.TYPE_CTRL:
-                print "CTRL Packet. subtype = ", ba_pkt[1]
+                LOG.debug("CTRL Packet. subtype = %d" % ba_pkt[1])
                 client.handle_ctrl_pkt(ba_pkt)
             else:
-                print "Unknown packet.type = ", ba_pkt[0]
+                LOG.error("Unknown packet.type = %d" % ba_pkt[0])
+                LOG.fatal("exiting...")
                 sys.exit(-1)
         
         if len(to_write) > 0:
@@ -407,10 +413,10 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         
         #cek ping rsp
         if client.cek_ping_rsp() == False:
-            print "PING-RSP timeout"
+            LOG.error("PING-RSP timeout")
             break
                 
-    print "Client exited..."
+    LOG.error("Client exited...")
     
         
 if __name__ == '__main__':
