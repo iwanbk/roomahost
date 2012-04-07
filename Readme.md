@@ -6,8 +6,11 @@ With Roomahost, you can access your webserver on your local network from remote 
 
 Is this another dyndns?
 ----------------------
-No, with roomahost you _don't_ need to:
+
+No, with roomahost you don't need to:
+
 *Have public IP
+
 *Set port forwarding, even though your local web server located behind the NAT
 
 
