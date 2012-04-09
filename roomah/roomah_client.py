@@ -330,7 +330,10 @@ def do_auth(user, password, server_sock):
     #bad username/password
     rsp = packet.AuthRsp(ba_rsp)
     if rsp.get_val() != packet.AUTH_RSP_OK:
-        print "AUTH_RSP_FAILED"
+        print "Authentication failed"
+        if rsp.get_val() == packet.AUTH_RSP_BAD_USERPASS:
+            print "Bad user/password"
+            print "Please check your user/password"
         return False
     return True
     
@@ -346,10 +349,9 @@ def client_loop(server, port, user, passwd, host_host, host_port):
         sys.exit(-1)
     
     if do_auth(user, passwd, server_sock) == False:
-        print "Auth failed"
         sys.exit(1)
         
-    print "AUTH OK"
+    print "Authentication successfull"
     
     client = Client(server_sock)
     

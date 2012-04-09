@@ -59,7 +59,7 @@ payload
 - val (AUTH_RSP_OK, AUTH_RSP_FAILED)
 '''
 AUTH_RSP_OK = 1
-AUTH_RSP_FAILED = 2
+AUTH_RSP_BAD_USERPASS = 2
 
 class AuthRsp:
     def __init__(self, payload = None):

@@ -211,6 +211,7 @@ class Client:
             - discard packet
             - kirim notifikasi ke client bahwa ses_id ini sudah dead
             """
+            LOG.debug("ses_id %d not found. peer already dead" % ses_id)
             peer_dead_pkt = packet.CtrlPkt()
             peer_dead_pkt.build_peer_dead(ses_id)
             self.ctrl_pkt.append(peer_dead_pkt)
@@ -247,8 +248,8 @@ def client_auth(sock,addr):
     
     user, password = auth_req.get_userpassword()
     if client_auth_rpc(user, password) != True:
-        LOG.debug("auth rpc failed %s:%s" % addr)
-        auth_rsp.build(packet.AUTH_RSP_FAILED)
+        LOG.debug("auth rpc failed for user %s at %s" % (user, addr))
+        auth_rsp.build(packet.AUTH_RSP_BAD_USERPASS)
         auth_res = AUTH_RES_UNKNOWN_ERR
     else:
         auth_rsp.build(packet.AUTH_RSP_OK)
