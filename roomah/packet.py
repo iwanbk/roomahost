@@ -10,6 +10,9 @@ import mysock
 """
 MIN_HEADER_LEN = 5
 
+MAX_USERNAME_LEN = 30
+PASS_HASH_LEN = 40
+
 TYPE_AUTH_REQ = 1
 TYPE_AUTH_RSP = 2
 TYPE_DATA_REQ = 3
@@ -34,7 +37,21 @@ class AuthReq:
         self.payload = payload
     
     def cek_valid(self):
-        return self.payload[0] == TYPE_AUTH_REQ
+        if self.payload[0] != TYPE_AUTH_REQ:
+            return False
+        
+        #pass len
+        if self.payload[2] != PASS_HASH_LEN:
+            return False
+
+        #user len
+        if self.payload[1] > MAX_USERNAME_LEN:
+            return False
+        
+        #payload len
+        if len(self.payload) != MIN_HEADER_LEN + self.payload[1] + self.payload[2]:
+            return False
+        return True
     
     def build(self, user, password):
         pass_hash = hashlib.sha1(password).hexdigest()

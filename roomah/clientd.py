@@ -241,6 +241,7 @@ def client_auth(sock,addr):
     
     auth_req = packet.AuthReq(ba_req)
     if not auth_req.cek_valid():
+        LOG.fatal("Bad AuthReq packet")
         return None, AUTH_RES_PKT_ERR
     
     auth_rsp = packet.AuthRsp()
