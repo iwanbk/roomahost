@@ -14,6 +14,7 @@ import mysock
 import http_utils
 import rhconf
 import rhmsg
+import authstat
 
 BASE_DOMAIN = ""
 CM = None
@@ -32,12 +33,6 @@ LOG.addHandler(rotfile_handler)
 if rhconf.LOG_STDERR_PEERD:
     stderr_handler = logging.StreamHandler()
     LOG.addHandler(stderr_handler)
-
-def report_usage(username, trf_req, trf_rsp):
-    '''Report data transfer usage.'''
-    stat_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
-    res = stat_server.usage_add(username, trf_req, trf_rsp)
-    return res
 
 class Peer:
     """Class that represents a Peer."""
@@ -108,7 +103,7 @@ class Peer:
                 break
             self.trf_rsp += written
 
-def user_not_found_str(user):
+def user_offline_str(user):
     '''User not found error message.'''
     html = "HTTP/1.1\n\
 Server: roomahost/0.1\n\
@@ -122,18 +117,12 @@ Connection: close\n\
     html += "</body></html>"
     return html
 
-def handle_client_not_found(client_name, sock):
+def handle_client_offline(client_name, sock):
     '''User not found handler.'''
     LOG.info("Send 'client not online' message to peer. Client = %s " % client_name)
-    str_err = user_not_found_str(client_name)
+    str_err = user_offline_str(client_name)
     mysock.send_all(sock, str_err)
     
-def get_client_own_domain(host):
-    '''Get client name yang memiliki own-domain.'''
-    server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
-    res = server.rh_domain_client(host)
-    return res
-
 def get_client_name(req, base_domain = BASE_DOMAIN):
     '''Get client name dari HTTP Request header.'''
     header = http_utils.get_http_req_header(req)
@@ -144,7 +133,7 @@ def get_client_name(req, base_domain = BASE_DOMAIN):
         host = header['Host']
         idx = host.find("." + base_domain)
         if idx < 0:
-            return get_client_own_domain(host)
+            return authstat.get_client_own_domain(host)
         else:
             return host[:idx]
     except AttributeError:
@@ -189,7 +178,7 @@ def forward_reqpkt_to_client(client_mq, ses_id, ba_req):
 
 def handle_peer(sock, addr):
     '''Peer connection handler.'''
-    LOG.debug("new_peer.addr = %s %s" % addr)
+    #LOG.debug("new_peer.addr = %s %s" % addr)
     
     #get request
     ba_req, err = mysock.recv(sock, BUF_LEN)
@@ -204,10 +193,18 @@ def handle_peer(sock, addr):
         sock.close()
         return
     
+    #check client status
+    client_status = authstat.client_status(client_name) 
+    if client_status != authstat.RH_STATUS_OK:
+        LOG.info("Access denied. Client status for %s is %d." % (client_name, client_status))
+        mysock.send_all(sock, authstat.client_status_msg(client_status, client_name))
+        return
+    
+    #get pointer to client mq
     client_mq = get_client_mq(client_name)
     
     if client_mq == None:
-        handle_client_not_found(client_name, sock)
+        handle_client_offline(client_name, sock)
         return
     
     #register peer to client
@@ -260,7 +257,7 @@ def handle_peer(sock, addr):
         gevent.sleep(0)
     
     #send usage to server
-    report_usage(client_name, peer.trf_req, peer.trf_rsp)
+    authstat.report_usage(client_name, peer.trf_req, peer.trf_rsp)
         
 def peer_server(port):
     '''Peer daemon startup function.'''
