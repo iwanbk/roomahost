@@ -135,6 +135,10 @@ def forward_incoming_req_pkt(ba_req, ba_len, host_host, host_port):
         HOST_CONNS_DICT[ses_id] = h_conn
         h_conn.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         _, err = mysock.connect(h_conn.sock, (host_host, host_port))
+        if err != None:
+            LOG.fatal("Connection to %s port %d failed." % (host_host, host_port))
+            LOG.fatal("Please check your local web server")
+            sys.exit(0)
     
     h_sock = h_conn.sock
     written, err = mysock.send_all(h_sock, req_data)
