@@ -1,5 +1,6 @@
 """
 Roomahost client
+Copyright(2012) Iwan Budi Kusnanto
 """
 import sys
 import socket
@@ -7,6 +8,7 @@ import select
 import time
 import datetime
 import logging
+import ConfigParser
 
 import packet
 import mysock
@@ -422,11 +424,14 @@ def client_loop(server, port, user, passwd, host_host, host_port):
     
         
 if __name__ == '__main__':
-    SERVER = sys.argv[1]
-    PORT = 3939
-    USER = sys.argv[2]
-    PASSWD = sys.argv[3]
-    HOST_HOST = sys.argv[4]
-    HOST_PORT = int(sys.argv[5])
+    conf = ConfigParser.ConfigParser()
+    conf.read("client.ini")
+    
+    SERVER = conf.get('roomahost', 'server')
+    PORT = int(conf.get('roomahost','port'))
+    USER = conf.get('roomahost','user')
+    PASSWD = conf.get('roomahost','password')
+    HOST_HOST = conf.get('roomahost','localhost_host')
+    HOST_PORT = int(conf.get('roomahost','localhost_port'))
     
     client_loop(SERVER, PORT, USER, PASSWD, HOST_HOST, HOST_PORT)
