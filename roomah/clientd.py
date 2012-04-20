@@ -67,7 +67,7 @@ class Client:
     def _add_peer(self, in_mq):
         '''Add a peer to this client.'''
         ses_id = self._gen_ses_id()
-        if ses_id == None:
+        if ses_id < 0:
             return None
         self.peers_mq[ses_id] = in_mq
         
@@ -85,6 +85,8 @@ class Client:
             return 0
         
         if msg['mt'] == rhmsg.CL_ADDPEER_REQ:
+            """Add peer request handler.
+            Ses id will be set to None if there is no ses_id left."""
             q_rep = msg['q']
             ses_id = self._add_peer(msg['in_mq'])
             
@@ -122,7 +124,8 @@ class Client:
             return ses_id + 1
     
     def _gen_ses_id(self):
-        '''Generate session id.'''
+        """Generate session id.
+        return -1 if there is no ses_id left."""
         start_id = self.ses_id
         
         ses_id = start_id
@@ -130,7 +133,7 @@ class Client:
         while ses_id in self.peers_mq.keys():
             ses_id = self._inc_ses_id(ses_id)
             if ses_id == start_id:
-                return 0
+                return -1
             
         self.ses_id = self._inc_ses_id(ses_id)
         
