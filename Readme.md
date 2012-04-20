@@ -1,31 +1,27 @@
-Roomahost
-========
-An Open Source HTTP Relay written in Python with [Gevent](http://www.gevent.org)
+# Roomahost
+An Open Source HTTP Relay written in Python with [Gevent](http://www.gevent.org).
 With Roomahost, you can access your webserver on your local network from remote location(internet).
 
 
-Is this another dyndns?
-----------------------
+## Is this another dyndns?
 
-No, with roomahost you don't need to:
+No, with roomahost you do not need to:
 
-*Have public IP
+* Have public IP
 
-*Set port forwarding, even though your local web server located behind the NAT
+* Set port forwarding, even though your local web server located behind the NAT
 
 
-Usage
------
+## Usage
 python server.py domain_to_serve.com
 
 Roomahost comes with simple JSON-RPC authentication server.
 Please take a look at simple_rpcd.py file
 
-Website
--------
+## Website
+
 http://cp.rh.labhijau.net
 
 
-About
------
+## About
 Written by [Iwan Budi Kusnanto](http://ibk.labhijau.net)
