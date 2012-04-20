@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Roomahost client
 Copyright(2012) Iwan Budi Kusnanto
