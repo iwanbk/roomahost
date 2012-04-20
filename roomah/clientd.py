@@ -30,7 +30,10 @@ rotfile_handler = logging.handlers.RotatingFileHandler(
     maxBytes=rhconf.LOG_MAXBYTE_CLIENTD,
     backupCount=10,
 )
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+rotfile_handler.setFormatter(formatter)
 LOG.addHandler(rotfile_handler)
+LOG.setLevel(rhconf.LOG_LEVEL_CLIENTD)
 
 if rhconf.LOG_STDERR_CLIENTD:
     stderr_handler = logging.StreamHandler()
