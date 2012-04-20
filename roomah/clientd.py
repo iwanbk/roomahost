@@ -23,12 +23,12 @@ BUF_LEN = 1024
 CM = None
 
 LOG_FILENAME = rhconf.LOG_FILE_CLIENTD
-logging.basicConfig(level = rhconf.LOG_LEVEL_CLIENTD)
+logging.basicConfig(level=rhconf.LOG_LEVEL_CLIENTD)
 LOG = logging.getLogger("clientd")
 rotfile_handler = logging.handlers.RotatingFileHandler(
     LOG_FILENAME,
-    maxBytes = rhconf.LOG_MAXBYTE_CLIENTD,
-    backupCount = 10,
+    maxBytes=rhconf.LOG_MAXBYTE_CLIENTD,
+    backupCount=10,
 )
 LOG.addHandler(rotfile_handler)
 
@@ -36,13 +36,14 @@ if rhconf.LOG_STDERR_CLIENTD:
     stderr_handler = logging.StreamHandler()
     LOG.addHandler(stderr_handler)
 
+
 class Client:
     """Represent a client."""
     def __init__(self, user, sock, addr):
         self.ses_id = 1
         self.user = user
         self.addr = addr
-        
+
         #socket for this user
         self.sock = sock
         
@@ -52,7 +53,7 @@ class Client:
         #list of ctrt packet
         self.ctrl_pkt = []
         
-        #true jika client ini sedang menunggu ping RSP
+        #true if this client is waiting for PING-RSP
         self.wait_ping_rsp = False
         
         #dict of peers mq
@@ -170,7 +171,8 @@ class Client:
         pkt = self.ctrl_pkt.pop(0)
         written, err = mysock.send_all(self.sock, pkt.payload)
         if written != len(pkt.payload) or err != None:
-            LOG.error("failed to send ctrl_pkt to:%s.type = %d" % self.user, pkt.payload[1])
+            LOG.error("failed to send ctrl_pkt to:%s.type = %d" %
+                      self.user, pkt.payload[1])
             self.dead = True
             return False
         return True
@@ -185,7 +187,7 @@ class Client:
         written, err = mysock.send_all(self.sock, p_rsp.payload)
         
         if err != None or (len(p_rsp.payload) != written):
-            LOG.error("error sending PING-RSP to %s" %  self.user)
+            LOG.error("error sending PING-RSP to %s" % self.user)
             return False
         
         self.wait_ping_rsp = False
@@ -212,8 +214,7 @@ class Client:
         if ses_id not in self.peers_mq:
             """ses_id not found.
             - discard packet
-            - kirim notifikasi ke client bahwa ses_id ini sudah dead
-            """
+            - kirim notifikasi ke client bahwa ses_id ini sudah dead."""
             LOG.debug("ses_id %d not found. peer already dead" % ses_id)
             peer_dead_pkt = packet.CtrlPkt()
             peer_dead_pkt.build_peer_dead(ses_id)
@@ -229,17 +230,19 @@ class Client:
         
         peer_mq.put(msg)
 
+
 def client_auth_rpc(username, password):
     """Do client auth RPC call."""
     auth_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
     res = auth_server.rh_auth(str(username), str(password))
     return res
 
-def client_auth(sock,addr):
+
+def client_auth(sock, addr):
     """Authenticate the client."""
     ba_req, err = mysock.recv(sock, BUF_LEN)
     if err != None:
-        LOG.warning("can't recv auth req %s:%s"% addr)
+        LOG.warning("can't recv auth req %s:%s" % addr)
         return None, AUTH_RES_UNKNOWN_ERR
     
     auth_req = packet.AuthReq(ba_req)
@@ -264,7 +267,8 @@ def client_auth(sock,addr):
         return user, AUTH_RES_UNKNOWN_ERR
     
     return user, auth_res
-    
+
+
 def unregister_client(client):
     """Unregister client from Client Manager."""
     msg = {}
@@ -272,6 +276,7 @@ def unregister_client(client):
     msg['user'] = client.user
     
     CM.in_mq.put(msg)
+
     
 def register_client(user, in_mq):
     """Register client to Client Manager."""
@@ -285,6 +290,7 @@ def register_client(user, in_mq):
     
     #wait the reply
     return True
+
     
 def handle_client(sock, addr):
     """Client handler."""
@@ -307,22 +313,21 @@ def handle_client(sock, addr):
         
         #select() sock
         wlist = []
-        if len(cli.req_pkt) > 0 or cli.wait_ping_rsp == True or len(cli.ctrl_pkt) > 0:
+        if len(cli.req_pkt) > 0 or cli.wait_ping_rsp == True or     len(cli.ctrl_pkt) > 0:
             wlist.append(sock)
             
-        rsocks, wsocks, _ = select.select([sock], wlist , [], 0.1)
-        if len(rsocks) > 0:       
+        rsocks, wsocks, _ = select.select([sock], wlist, [], 0.1)
+        if len(rsocks) > 0:
             ba_pkt, err = packet.get_all_data_pkt(sock)
             if ba_pkt is None or err is not None:
                 LOG.debug("read client sock err.exiting")
                 break
             
-            if ba_pkt[0] == packet.TYPE_DATA_RSP:  
+            if ba_pkt[0] == packet.TYPE_DATA_RSP:
                 cli.process_rsp_pkt(ba_pkt, len(ba_pkt))
             elif ba_pkt[0] == packet.TYPE_PING_REQ:
                 cli.wait_ping_rsp = True
-        
-        
+
         if len(wsocks) > 0:
             if cli.send_ctrl_pkt() == False:
                 break
@@ -336,6 +341,7 @@ def handle_client(sock, addr):
         gevent.sleep(0)
     
     unregister_client(cli)
+
 
 def client_server(port):
     """Client daemon initialization function."""
