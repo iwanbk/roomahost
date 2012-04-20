@@ -1,0 +1,24 @@
+** install all requirements
+pip install -r requirements.txt
+
+** configuration file
+mv rhconf.py.example rhconf.py
+
+Edit the configuration according your needs.
+You don't need edit this file for simple deployment
+
+** start simple_rpcd.py
+It is a simple authentication and statistic server.
+For very simple deployment, it will fit your needs.
+To add/del user, you can modify userpass_dict variable.
+to start it:
+	python simple_rpcd.py
+
+** logs directory
+mkdir logs
+
+** start roomahost_server
+	python server.py domain_to_serv
+
+roomahost server will listen on port 127.0.0.1:4000.
+You can put nginx in front of roomahost server if you need.

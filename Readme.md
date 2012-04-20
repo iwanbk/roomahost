@@ -15,6 +15,8 @@ No, with roomahost you do not need to:
 ## Usage
 python server.py domain_to_serve.com
 
+see docs/install_run_server.txt for more detailed instruction
+
 Roomahost comes with simple JSON-RPC authentication server.
 Please take a look at simple_rpcd.py file
 
