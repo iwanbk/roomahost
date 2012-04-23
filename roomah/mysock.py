@@ -84,7 +84,7 @@ def recv(sock, count):
     ba = bytearray(recv_str)
     return ba, None
 
-def recv_all(sock, count):
+def recv_safe(sock, count):
     """Recv all data from socket."""
     to_read = count
     ba, err = recv(sock, to_read)
