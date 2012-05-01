@@ -2,6 +2,8 @@ import logging
 
 AUTH_SERVER_URL = "http://localhost:6565/"
 
+CACHE_STATUS_SECONDS = 7 #number of seconds to cache client's status
+
 LOG_LEVEL_PEERD = logging.DEBUG
 LOG_LEVEL_CLIENTD = logging.DEBUG
 LOG_LEVEL_CM = logging.DEBUG

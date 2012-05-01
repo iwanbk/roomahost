@@ -7,6 +7,7 @@ import logging.handlers
 
 import gevent.queue
 
+import authstat
 import rhmsg
 import rhconf
 
@@ -46,6 +47,7 @@ class ClientMgr(gevent.Greenlet):
     
     def _del_client(self, user):
         del self.clients_mq[str(user)]
+        authstat.cache_status_del(str(user))
         
     def _get_client_mq(self, user_str):
         if user_str in self.clients_mq:
