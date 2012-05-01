@@ -1,5 +1,16 @@
 from BaseHTTPServer import BaseHTTPRequestHandler
 from StringIO import StringIO
+# try to import C parser then fallback in pure python parser.
+try:
+    from http_parser.parser import HttpParser
+    print "Using C HTTP parser"
+except ImportError:
+    print "Using pure Python HTTP parser"
+    from http_parser.pyparser import HttpParser
+
+def get_subdom(request, base_domain):
+    """Get subdomain in the Host header."""
+    pass
 
 class HTTPRequest(BaseHTTPRequestHandler):
     def __init__(self, request_text):
