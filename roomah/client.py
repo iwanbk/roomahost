@@ -86,36 +86,6 @@ def del_host_conn(ses_id, h_conn = None):
     conn.reset()
     del HOST_CONNS_DICT[ses_id]
 
-def rewrite_host_header(line, req, host_host, host_port):
-    '''Rewrite host header.'''
-    import http_utils
-    header = http_utils.get_http_req_header(req)
-    
-    if header == None:
-        return line
-    try:
-        host = header['Host']
-    except AttributeError:
-        return line
-    
-    rew_host = line.replace(host, host_host + ":" + str(host_port), 1)
-    return rew_host
-    
-def rewrite_req(req, host_host, host_port):
-    '''Rewrite http request header.'''
-    splt = req.split("\r\n")
-    mod_req = ""
-    for s in splt:
-        if s.find("Host:") == 0:
-            rew_host = rewrite_host_header(s, req, host_host, host_port)
-            mod_req += rew_host
-        else:
-            mod_req += s
-        mod_req += "\r\n"
-    
-    #print mod_req
-    return mod_req
-
 def forward_incoming_req_pkt(ba_req, ba_len, host_host, host_port):
     '''Forward incoming req packet to host.'''
     req = packet.DataReq(ba_req)
@@ -153,31 +123,6 @@ def forward_incoming_req_pkt(ba_req, ba_len, host_host, host_port):
         print "FATAL UNHANDLED COND"
         sys.exit(-1)
 
-def rewrite_loc_header(line, rsp, host_host, host_port, rh_host, rh_port):
-    """rewrite Location header."""
-    rew_loc = line.replace(host_host, rh_host, 1)
-    print "rew_loc = ", rew_loc
-    return rew_loc
-
-def rewrite_first_rsp(rsp, host_host, host_port, rh_host, rh_port):
-    """Rewrite first response (response header)"""
-    print "==============first response=============="
-    splt = rsp.split("\r\n")
-    mod_rsp = ""
-    for i in range(0, len(splt)):
-        print "->:", splt[i]
-        if splt[i].find("Location:") == 0:
-            rew_loc = rewrite_loc_header(splt[i], rsp, host_host, host_port, rh_host, rh_port)
-            mod_rsp += rew_loc
-        else:
-            mod_rsp += splt[i]
-        if i < len(splt) -1:
-            mod_rsp += "\r\n"
-        
-    print "==============mod rsp"
-    print mod_rsp
-    return mod_rsp
-    
 def accept_host_rsp(h_sock):
     '''accept host response.
     enqueue it to rsp_list.
