@@ -24,6 +24,16 @@ Please take a look at simple_rpcd.py file
 
 http://cp.rh.labhijau.net
 
+## Roomahost Terms
+
+I borrow roomahost terms from TURN protocol:
+
+* peer
+something that accessing your local webserver from outer network via roomahost.
+Usually, it is a browser.
+
+* client
+Roomahost client application that running in a computer inside your local network.
 
 ## About
 Written by [Iwan Budi Kusnanto](http://ibk.labhijau.net)
