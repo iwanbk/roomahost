@@ -28,11 +28,11 @@ http://cp.rh.labhijau.net
 
 I borrow roomahost terms from TURN protocol:
 
-* peer
+* peer :  
 something that accessing your local webserver from outer network via roomahost.
 Usually, it is a browser.
 
-* client
+* client : 
 Roomahost client application that running in a computer inside your local network.
 
 ## About
