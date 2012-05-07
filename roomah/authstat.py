@@ -42,7 +42,8 @@ def client_status(username):
     
     auth_server = jsonrpclib.Server(rhconf.AUTH_SERVER_URL)
     status = auth_server.status(username)
-    cache_status_set(username, status)
+    if status != RH_STATUS_NOT_FOUND:
+        cache_status_set(username, status)
     return status
 
 def get_client_own_domain(host):
