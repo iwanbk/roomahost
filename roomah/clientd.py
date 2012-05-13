@@ -68,6 +68,12 @@ class Client:
         #if dead
         self.dead = False
     
+    def disconnect(self):
+        """Disconnect this client."""
+        if self.sock:
+            print "closing the socket"
+            self.sock.close()
+
     def _add_peer(self, in_mq):
         '''Add a peer to this client.'''
         ses_id = self._gen_ses_id()
@@ -344,6 +350,7 @@ def handle_client(sock, addr):
         gevent.sleep(0)
     
     unregister_client(cli)
+    cli.disconnect()
 
 
 def client_server(port):
