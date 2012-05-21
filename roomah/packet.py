@@ -226,29 +226,48 @@ class CtrlPkt():
     Data
     None
     '''
+    #peer died
     T_PEER_DEAD = 1
+    
+    #Local webserver is down
+    T_LOCAL_DOWN = 2
+    
     def __init__(self, payload = None):
         self.payload = payload
     
     def get_type(self):
         return self.payload[1]
+    
+    def get_ses_id(self):
+        return self.payload[2]
         
     def cek_valid(self):
         if self.payload != None:
             return (self.payload[0] == TYPE_CTRL)
             
         return True
-    ####### peer dead ##########
-    def build_peer_dead(self, ses_id):
+    
+    def build(self, ses_id, subtype):
         payload = bytearray(5)
         payload[0] = TYPE_CTRL
-        payload[1] = self.T_PEER_DEAD
+        payload[1] = subtype
         payload[2] = ses_id
         
         self.payload = payload
+        
+    ####### peer dead ##########
+    def build_peer_dead(self, ses_id):
+        self.build(ses_id, self.T_PEER_DEAD)
     
     def peer_dead_ses_id(self):
         return self.payload[2]
+    
+    ###### Local Down #####
+    def build_local_down(self, ses_id):
+        self.build(ses_id, self.T_LOCAL_DOWN)
+    
+    def is_local_down(self):
+        return self.payload[1] == self.T_LOCAL_DOWN
         
 class Packet:
     def __init__(self, type = None, payload = None):
