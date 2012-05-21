@@ -22,6 +22,9 @@ HOST_CONNS_DICT = {}
 logging.basicConfig(level = logging.INFO)
 LOG = logging.getLogger("rhclient")
 
+LOCAL_STATUS_OK = 0
+LOCAL_STATUS_DOWN = 1
+
 class HostConn:
     '''Connection to host.'''
     def __init__(self, ses_id):
@@ -103,13 +106,13 @@ def forward_incoming_req_pkt(ba_req, ba_len, host_host, host_port):
         LOG.debug("use old connection.ses_id = %d" % h_conn.ses_id)
     except KeyError:
         h_conn = HostConn(ses_id)
-        HOST_CONNS_DICT[ses_id] = h_conn
         h_conn.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         _, err = mysock.connect(h_conn.sock, (host_host, host_port))
         if err != None:
             LOG.fatal("Connection to %s port %d failed." % (host_host, host_port))
             LOG.fatal("Please check your local web server")
-            sys.exit(0)
+            return LOCAL_STATUS_DOWN, ses_id
+        HOST_CONNS_DICT[ses_id] = h_conn
     
     h_sock = h_conn.sock
     written, err = mysock.send_all(h_sock, req_data)
@@ -122,6 +125,8 @@ def forward_incoming_req_pkt(ba_req, ba_len, host_host, host_port):
         print "PARTIAL FORWARD to host"
         print "FATAL UNHANDLED COND"
         sys.exit(-1)
+    
+    return LOCAL_STATUS_OK, ses_id
 
 def accept_host_rsp(h_sock):
     '''accept host response.
@@ -253,13 +258,18 @@ class Client:
         if pkt.payload[0] == packet.TYPE_PING_REQ:
             self.last_ping = time.time()
             self.wait_ping_rsp = True
-            #print "[PING-REQ]", datetime.datetime.now()
-        
+            
         return True
     
     def any_pkt_to_server(self):
         '''True if there is pkt to server.'''
         return len(self.to_server_pkt) > 0
+    
+    def send_ctrl_local_down(self, ses_id):
+        """Send Local Down Ctrl packet to server."""
+        pkt = packet.CtrlPkt()
+        pkt.build_local_down(ses_id)
+        self.to_server_pkt.append(pkt)
 
 def do_auth(user, password, server_sock):
     """Doing roomahost authentication."""
@@ -288,7 +298,7 @@ def do_auth(user, password, server_sock):
             print "Please check your user/password"
         return False
     return True
-    
+
 def client_loop(server, port, user, passwd, host_host, host_port):
     """Main client loop."""
     #connect to server
@@ -329,7 +339,9 @@ def client_loop(server, port, user, passwd, host_host, host_port):
             
             #request packet
             if ba_pkt[0] == packet.TYPE_DATA_REQ:
-                forward_incoming_req_pkt(ba_pkt, len(ba_pkt), host_host, host_port)
+                local_status, ses_id = forward_incoming_req_pkt(ba_pkt, len(ba_pkt), host_host, host_port)
+                if local_status == LOCAL_STATUS_DOWN:
+                    client.send_ctrl_local_down(ses_id)
             
             #ping rsp
             elif ba_pkt[0] == packet.TYPE_PING_RSP:

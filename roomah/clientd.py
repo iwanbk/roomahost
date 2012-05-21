@@ -250,6 +250,7 @@ class Client:
     
     def process_ctrlrsp_pkt(self, ba_rsp):
         """Process Ctrl Rsp packet."""
+        print "receive ctrl rsp"
         rsp = packet.CtrlPkt(ba_rsp)
         
         #get ses_id
@@ -371,7 +372,7 @@ def handle_client(sock, addr):
                 LOG.debug("read client sock err.exiting")
                 break
             
-            if ba_pkt[0] == packet.TYPE_DATA_RSP:
+            if ba_pkt[0] == packet.TYPE_DATA_RSP or ba_pkt[0] == packet.TYPE_CTRL:
                 cli.process_rsp_pkt(ba_pkt, len(ba_pkt))
             elif ba_pkt[0] == packet.TYPE_PING_REQ:
                 cli.wait_ping_rsp = True
