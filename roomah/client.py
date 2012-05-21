@@ -19,7 +19,7 @@ HOST_BUF_LEN = SERV_BUF_LEN - packet.MIN_HEADER_LEN
 
 HOST_CONNS_DICT = {}
 
-logging.basicConfig(level = logging.INFO)
+logging.basicConfig(level = logging.INFO, format='%(asctime)s : %(levelname)s : %(message)s')
 LOG = logging.getLogger("rhclient")
 
 LOCAL_STATUS_OK = 0
@@ -307,13 +307,13 @@ def client_loop(server, port, user, passwd, host_host, host_port):
     ret, err = mysock.connect(server_sock, (server, port))
     
     if err != None:
-        print "can't connect to server"
-        sys.exit(-1)
+        LOG.error("can't connect to server")
+        return
     
     if do_auth(user, passwd, server_sock) == False:
         sys.exit(1)
         
-    print "Authentication successfull"
+    LOG.info("Authentication successfull")
     
     client = Client(server_sock)
     
@@ -334,7 +334,7 @@ def client_loop(server, port, user, passwd, host_host, host_port):
             #read sock
             ba_pkt, err = packet.get_all_data_pkt(server_sock)
             if ba_pkt is None or err != None:
-                print "Error : Connection to server"
+                LOG.error("Connection to server closed")
                 break
             
             #request packet
@@ -382,7 +382,7 @@ def client_loop(server, port, user, passwd, host_host, host_port):
             LOG.error("PING-RSP timeout")
             break
                 
-    LOG.error("Client exited...")
+    LOG.error("Client disconnected")
     
         
 if __name__ == '__main__':
@@ -395,5 +395,19 @@ if __name__ == '__main__':
     PASSWD = conf.get('roomahost','password')
     HOST_HOST = conf.get('roomahost','localhost_host')
     HOST_PORT = int(conf.get('roomahost','localhost_port'))
+    AUTO_RECON_PERIOD = int(conf.get('roomahost','auto_reconnect_period'))
     
-    client_loop(SERVER, PORT, USER, PASSWD, HOST_HOST, HOST_PORT)
+    LOG.info("roomahost server = %s" % SERVER)
+    LOG.info("roomahost server port = %d" % PORT)
+    LOG.info("roomahost user = %s" % USER)
+    LOG.info("Local server = %s" % HOST_HOST)
+    LOG.info("Local server port = %d" % HOST_PORT)
+    LOG.info("Auto Reconnect Period = %d" % AUTO_RECON_PERIOD)
+    
+    while True:
+        client_loop(SERVER, PORT, USER, PASSWD, HOST_HOST, HOST_PORT)
+        if AUTO_RECON_PERIOD <= 0:
+            break
+        LOG.info("waiting for auto reconnection")
+        time.sleep(AUTO_RECON_PERIOD)
+        LOG.info("Reconnecting...")
