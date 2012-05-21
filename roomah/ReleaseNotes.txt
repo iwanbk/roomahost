@@ -1,0 +1,6 @@
+0.4
+- Give notification to peer/browser when local website is down.
+- Client will do auto reconnection if connection to server failed/closed.
+
+0.3
+- First public version
