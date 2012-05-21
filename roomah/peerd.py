@@ -15,6 +15,7 @@ import http_utils
 import rhconf
 import rhmsg
 import authstat
+import packet
 
 BASE_DOMAIN = ""
 CM = None
@@ -41,9 +42,10 @@ class Peer:
     """Class that represents a Peer."""
     RSP_FORWARD_NUM = 5
     
-    def __init__(self, sock, addr, client_mq = None):
+    def __init__(self, sock, addr, client_name, client_mq = None):
         self.sock = sock
         self.addr = addr
+        self.client_name = client_name
         self.ses_id = None
         self.ended = False
         self.rsp_list = []
@@ -79,15 +81,26 @@ class Peer:
     def _do_forward_rsp_pkt(self):
         '''Forward response packet to peer.'''
         if len(self.rsp_list) == 0:
-            return 0
+            return True, 0
         
         rsp = self.rsp_list.pop(0)
+        
+        if rsp.payload[0] == packet.TYPE_DATA_RSP:
+            return self._do_forward_data_pkt(rsp)
+        elif rsp.payload[0] == packet.TYPE_CTRL:
+            return self._handle_ctrl_pkt(rsp)
+        else:
+            LOG.info("unknown rsp packet type for client = %s" % self.client_name)
+            return False, 0
+        
+    def _do_forward_data_pkt(self, rsp):
+        """Forward DataRsp packet."""
         data = rsp.get_data()
         
         written, err = mysock.send(self.sock, data)
         if err != None:
             LOG.warning("rsp_pkt_fwd err")
-            return -1
+            return False, -1
         
         if written != len(data):
             LOG.warning("peer.forward_rsp_pkt partial %s:%s" % self.addr)
@@ -95,16 +108,29 @@ class Peer:
         
         if rsp.is_eof() == True:
             self.ended = True
-            
-        return written
+        
+        return True, written
     
+    def _handle_ctrl_pkt(self, rsp):
+        """Handle Ctrl packet from client."""
+        if rsp.is_local_down():
+            handle_local_down(self.client_name, self.sock)
+            return False, 0
+        else:
+            LOG.warning("unknown ctrl pkt type=", rsp.payload[1])
+            return False, 0
+        
     def forward_rsp_pkt(self):
         '''Forward response packet to peer.'''
         for _ in xrange(0, self.RSP_FORWARD_NUM):
-            written = self._do_forward_rsp_pkt()
+            is_ok, written = self._do_forward_rsp_pkt()
+            if not is_ok:
+                return False
             if written <= 0:
                 break
             self.trf_rsp += written
+        
+        return True
 
 def user_offline_str(user):
     '''User not found error message.'''
@@ -124,6 +150,25 @@ def handle_client_offline(client_name, sock):
     '''User not found handler.'''
     LOG.info("Send 'client not online' message to peer. Client = %s " % client_name)
     str_err = user_offline_str(client_name)
+    mysock.send_all(sock, str_err)
+
+def local_down_str(client_name):
+    '''User not found error message.'''
+    html = "HTTP/1.1\n\
+Server: roomahost/0.1\n\
+Content-Type: text/html\n\
+Content-Length: 173\n\
+Connection: close\n\
+\r\n\
+"
+    html += "<html><body>"
+    html += "<center><big>Local web server of <b>" + client_name + " </b> is down now</big></center>"
+    html += "</body></html>"
+    return html
+
+def handle_local_down(client_name, sock):
+    LOG.info("Send 'local down' message to peer. Client = %s " % client_name)
+    str_err = local_down_str(client_name)
     mysock.send_all(sock, str_err)
     
 def get_client_name(req, base_domain = BASE_DOMAIN):
@@ -211,7 +256,7 @@ def handle_peer(sock, addr):
         return
     
     #register peer to client
-    peer = Peer(sock, addr, client_mq)
+    peer = Peer(sock, addr, client_name, client_mq)
     peer.ses_id = register_peer(peer)
     
     if peer.ses_id == None:
@@ -251,7 +296,9 @@ def handle_peer(sock, addr):
                 peer.trf_req += len(ba_req)
         
         if len(wsocks) > 0:
-            peer.forward_rsp_pkt()
+            is_ok = peer.forward_rsp_pkt()
+            if not is_ok:
+                break
         
         if peer.ended == True and len(peer.rsp_list) == 0:
             peer.close()

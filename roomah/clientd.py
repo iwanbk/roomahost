@@ -208,7 +208,16 @@ class Client:
             LOG.error("FATAL:packet too small,discard.user = %s" % self.user)
             return
         
-        #build rsp_packet
+        if ba_rsp[0] == packet.TYPE_DATA_RSP:
+            return self.process_datarsp_pkt(ba_rsp)
+        elif ba_rsp[0] == packet.TYPE_CTRL:
+            return self.process_ctrlrsp_pkt(ba_rsp)
+        else:
+            LOG.error("FATAL:unrecognized packet type = %s" % self.user)
+            return
+        
+    def process_datarsp_pkt(self, ba_rsp):
+        """Process Data Rsp Packet."""
         rsp = packet.DataRsp(ba_rsp)
         
         #get ses_id
@@ -238,7 +247,37 @@ class Client:
         msg['pkt'] = rsp
         
         peer_mq.put(msg)
-
+    
+    def process_ctrlrsp_pkt(self, ba_rsp):
+        """Process Ctrl Rsp packet."""
+        rsp = packet.CtrlPkt(ba_rsp)
+        
+        #get ses_id
+        ses_id = rsp.get_ses_id()
+        
+        #get peer mq
+        if ses_id not in self.peers_mq:
+            """ses_id not found.
+            - discard packet"""
+            if rsp.is_local_down():
+                """Client already closed the connection."""
+                return
+            else:
+                """Send notification to client that this ses_id already died."""
+                LOG.debug("ses_id %d not found. peer already dead" % ses_id)
+                peer_dead_pkt = packet.CtrlPkt()
+                peer_dead_pkt.build_peer_dead(ses_id)
+                self.ctrl_pkt.append(peer_dead_pkt)
+                return
+        
+        peer_mq = self.peers_mq[ses_id]
+        
+        #send RSP-PKT to peer mq
+        msg = {}
+        msg['mt'] = rhmsg.PD_ADD_RSP_PKT
+        msg['pkt'] = rsp
+        
+        peer_mq.put(msg)
 
 def client_auth_rpc(username, password):
     """Do client auth RPC call."""
