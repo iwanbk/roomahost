@@ -10,6 +10,9 @@ userpass_dict = {
     "ibk":"ibk",
     "paijo":"paijo",
 }
+userdomain_dict = {
+    "iwanbk.lan":"iwanbk",
+}
 
 #authentication
 def rh_auth(username, password):
@@ -38,9 +41,19 @@ def usage_add(username, trf_req, trf_rsp):
 def status(username):
     return authstat.RH_STATUS_OK
 
+#client own domain
+def rh_domain_client(domain):
+    print "domain = ", domain
+    try:
+        client_name = userdomain_dict[domain]
+        return client_name
+    except KeyError:
+        return None
+
 if __name__ == '__main__':
     server = SimpleJSONRPCServer(('0.0.0.0',6565 ))
     server.register_function(rh_auth)
     server.register_function(usage_add)
     server.register_function(status)
+    server.register_function(rh_domain_client)
     server.serve_forever()
