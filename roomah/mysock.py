@@ -26,10 +26,6 @@ def _send(sock, payload):
         written = sock.send(payload)
     except socket.error as (_, err_str):
         return written, (socket.error, err_str)
-    except socket.herror as (_, err_str):
-        return written, (socket.herror, err_str)
-    except socket.gaierror as (_, err_str):
-        return written, (socket.gaierror, err_str)
     except socket.timeout:
         return written, (socket.timeout, "")
     
@@ -59,10 +55,6 @@ def recv_str(sock, count):
         the_str = sock.recv(count)
     except socket.error as (_, err_str):
         return None, (socket.error, err_str)
-    except socket.herror as (_, err_str):
-        return None, (socket.herror, err_str)
-    except socket.gaierror as (_, err_str):
-        return None, (socket.gaierror, err_str)
     except socket.timeout:
         return None, (socket.timeout, "")
     
@@ -74,10 +66,6 @@ def recv(sock, count):
         recv_str = sock.recv(count)
     except socket.error as (_, err_str):
         return None, (socket.error, err_str)
-    except socket.herror as (_, err_str):
-        return None, (socket.herror, err_str)
-    except socket.gaierror as (_, err_str):
-        return None, (socket.gaierror, err_str)
     except socket.timeout:
         return None, (socket.timeout, "")
     
