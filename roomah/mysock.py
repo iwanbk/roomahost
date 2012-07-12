@@ -74,27 +74,15 @@ def recv(sock, count):
 
 def recv_safe(sock, count):
     """Recv all data from socket."""
-    to_read = count
-    ba, err = recv(sock, to_read)
-    if err != None:
+    ba, err = recv(sock, count)
+    if err != None or (ba != None and len(ba) == 0):
         return None, err
-    
-    if ba != None and len(ba) == 0:
-        return None, err
-    
     buf = ba
-    
-    to_read -= len(ba)
-    while to_read > 0:
-        ba, err = recv(sock, to_read)
-        
-        if err != None:
-            return None, err
-    
-        if ba != None and len(ba) == 0:
+    while len(buf) < count:
+        ba, err = recv(sock, count - len(buf))
+        if err != None or (ba != None and len(ba) == 0):
             return None, err
         buf += ba
-        to_read -= len(ba)
         
     return buf, err
 
