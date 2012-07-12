@@ -63,7 +63,7 @@ class Peer:
         '''Close peer connection.'''
         self.sock.close()
         self._unreg()
-        self.rsp_list.clear()
+        self.rsp_list = []
         return True
     
     def _unreg(self):
