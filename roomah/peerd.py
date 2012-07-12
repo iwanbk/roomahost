@@ -61,10 +61,9 @@ class Peer:
     
     def close(self):
         '''Close peer connection.'''
-        if self.ended == False or len(self.rsp_list) > 0:
-            return False
         self.sock.close()
         self._unreg()
+        self.rsp_list.clear()
         return True
     
     def _unreg(self):
@@ -99,7 +98,8 @@ class Peer:
         
         written, err = mysock.send(self.sock, data)
         if err != None:
-            LOG.warning("rsp_pkt_fwd err")
+            LOG.warning("_do_forward_data_pkt:can't forward data to peer. end this peer")
+            self.ended = True
             return False, -1
         
         if written != len(data):
@@ -289,7 +289,7 @@ def handle_peer(sock, addr):
         if len(rsocks) > 0:
             ba_req, err = mysock.recv(sock, BUF_LEN)
             if len(ba_req) == 0:
-                peer.close()
+                peer.ended = True
                 break    
             elif len(ba_req) > 0:
                 forward_reqpkt_to_client(client_mq, peer.ses_id, ba_req)
@@ -297,14 +297,13 @@ def handle_peer(sock, addr):
         
         if len(wsocks) > 0:
             is_ok = peer.forward_rsp_pkt()
-            if not is_ok:
-                break
         
-        if peer.ended == True and len(peer.rsp_list) == 0:
-            peer.close()
+        if peer.ended == True:
             break
         
         gevent.sleep(0)
+    
+    peer.close()
     
     #send usage to server
     authstat.report_usage(client_name, peer.trf_req, peer.trf_rsp)
